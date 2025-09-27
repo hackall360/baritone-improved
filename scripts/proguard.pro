@@ -2,6 +2,12 @@
 -keepattributes *Annotation*
 -keepattributes InnerClasses
 
+-obfuscationdictionary obfuscation-dictionary.txt
+-classobfuscationdictionary obfuscation-dictionary.txt
+-packageobfuscationdictionary package-obfuscation-dictionary.txt
+-useuniqueclassmembernames
+-adaptclassstrings
+
 -optimizationpasses 5
 -verbose
 
