@@ -24,6 +24,7 @@ import baritone.api.behavior.IBehavior;
 import baritone.api.event.listener.IEventBus;
 import baritone.api.process.IBaritoneProcess;
 import baritone.api.process.IElytraProcess;
+import baritone.api.pathing.seed.ISeedPathing;
 import baritone.api.utils.IPlayerContext;
 import baritone.behavior.*;
 import baritone.cache.WorldProvider;
@@ -36,6 +37,7 @@ import baritone.utils.GuiClick;
 import baritone.utils.InputOverrideHandler;
 import baritone.utils.PathingControlManager;
 import baritone.utils.player.BaritonePlayerContext;
+import baritone.pathing.seed.SeedPredictionService;
 import net.minecraft.client.Minecraft;
 
 import java.io.IOException;
@@ -86,6 +88,8 @@ public class Baritone implements IBaritone {
     private final SelectionManager selectionManager;
     private final CommandManager commandManager;
 
+    private final SeedPredictionService seedPrediction;
+
     private final IPlayerContext playerContext;
     private final WorldProvider worldProvider;
 
@@ -131,6 +135,8 @@ public class Baritone implements IBaritone {
         this.worldProvider = new WorldProvider(this);
         this.selectionManager = new SelectionManager(this);
         this.commandManager = new CommandManager(this);
+        this.seedPrediction = new SeedPredictionService(this);
+        this.gameEventHandler.registerEventListener(this.seedPrediction);
     }
 
     public void registerBehavior(IBehavior behavior) {
@@ -245,6 +251,15 @@ public class Baritone implements IBaritone {
     @Override
     public IElytraProcess getElytraProcess() {
         return this.elytraProcess;
+    }
+
+    @Override
+    public ISeedPathing getSeedPathing() {
+        return this.seedPrediction;
+    }
+
+    public SeedPredictionService getSeedPrediction() {
+        return this.seedPrediction;
     }
 
     @Override

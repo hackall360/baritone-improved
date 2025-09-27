@@ -154,6 +154,22 @@ public final class Settings {
     public final Setting<Boolean> allowWaterBucketFall = new Setting<>(true);
 
     /**
+     * Enable the experimental seed-based macro planner that predicts terrain from a configured seed.
+     * Disabled by default so existing behavior is unchanged unless explicitly toggled.
+     */
+    public final Setting<Boolean> seedBasedPrediction = new Setting<>(false);
+
+    /**
+     * The last configured world seed for predictive planning. Requires {@link #seedPredictionSeedConfigured} to be true.
+     */
+    public final Setting<Long> seedPredictionSeed = new Setting<>(0L);
+
+    /**
+     * Tracks whether a predictive planning seed has been explicitly provided by the user.
+     */
+    public final Setting<Boolean> seedPredictionSeedConfigured = new Setting<>(false);
+
+    /**
      * Allow Baritone to assume it can walk on still water just like any other block.
      * This functionality is assumed to be provided by a separate library that might have imported Baritone.
      * <p>
