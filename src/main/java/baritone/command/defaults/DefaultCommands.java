@@ -51,6 +51,8 @@ public final class DefaultCommands {
                 new ForceCancelCommand(baritone),
                 new GcCommand(baritone),
                 new InvertCommand(baritone),
+                new AutoEatCommand(baritone),
+                new AutoEatThresholdCommand(baritone),
                 new TunnelCommand(baritone),
                 new RenderCommand(baritone),
                 new FarmCommand(baritone),

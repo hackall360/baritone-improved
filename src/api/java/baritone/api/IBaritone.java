@@ -28,6 +28,7 @@ import baritone.api.pathing.seed.ISeedPathing;
 import baritone.api.process.*;
 import baritone.api.selection.ISelectionManager;
 import baritone.api.utils.IInputOverrideHandler;
+import baritone.api.utils.IItemUseHelper;
 import baritone.api.utils.IPlayerContext;
 
 /**
@@ -103,6 +104,11 @@ public interface IBaritone {
     IElytraProcess getElytraProcess();
 
     /**
+     * @return The {@link IAutoEatProcess} instance
+     */
+    IAutoEatProcess getAutoEatProcess();
+
+    /**
      * @return The {@link IWorldProvider} instance
      * @see IWorldProvider
      */
@@ -122,6 +128,11 @@ public interface IBaritone {
      * @see IInputOverrideHandler
      */
     IInputOverrideHandler getInputOverrideHandler();
+
+    /**
+     * @return Helper utilities for interacting with held items.
+     */
+    IItemUseHelper getItemUseHelper();
 
     /**
      * @return The {@link IPlayerContext} instance

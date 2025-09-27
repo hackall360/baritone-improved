@@ -93,6 +93,16 @@ public final class Settings {
     public final Setting<Boolean> allowInventory = new Setting<>(false);
 
     /**
+     * Automatically eat food when the player's hunger drops below the configured threshold.
+     */
+    public final Setting<Boolean> autoEat = new Setting<>(false);
+
+    /**
+     * The hunger level that will trigger automatic eating when {@link #autoEat} is enabled.
+     */
+    public final Setting<Integer> autoEatThreshold = new Setting<>(12);
+
+    /**
      * Wait this many ticks between InventoryBehavior moving inventory items
      */
     public final Setting<Integer> ticksBetweenInventoryMoves = new Setting<>(1);
