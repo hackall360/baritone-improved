@@ -797,6 +797,28 @@ public final class Settings {
     public final Setting<Boolean> antiCheatCompatibility = new Setting<>(true);
 
     /**
+     * Applies a subtle "humanization" layer while {@link #antiCheatCompatibility} is enabled. The layer introduces
+     * small rotational drift and movement variations so that Baritone's control inputs look closer to real player
+     * behaviour for modern anti-cheat checks.
+     */
+    public final Setting<Boolean> antiCheatHumanization = new Setting<>(true);
+
+    /**
+     * The maximum angle (in degrees) that the humanization layer may drift rotations away from the exact target.
+     */
+    public final Setting<Float> antiCheatHumanizationAngle = new Setting<>(0.45f);
+
+    /**
+     * The maximum offset applied to the player's strafe/forward impulses while the humanization layer is active.
+     */
+    public final Setting<Float> antiCheatHumanizationMovement = new Setting<>(0.12f);
+
+    /**
+     * Average amount of ticks between humanization adjustments. Larger values slow down how often new offsets are picked.
+     */
+    public final Setting<Integer> antiCheatHumanizationInterval = new Setting<>(6);
+
+    /**
      * Exclusively use cached chunks for pathing
      * <p>
      * Never turn this on

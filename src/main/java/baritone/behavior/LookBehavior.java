@@ -194,6 +194,11 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
         private final ForkableRandom rand;
         private double randomYawOffset;
         private double randomPitchOffset;
+        private float humanYawOffset;
+        private float humanPitchOffset;
+        private float targetHumanYawOffset;
+        private float targetHumanPitchOffset;
+        private int humanizationTicksRemaining;
 
         public AbstractAimProcessor(IPlayerContext ctx) {
             this.ctx = ctx;
@@ -205,6 +210,11 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
             this.rand = source.rand.fork();
             this.randomYawOffset = source.randomYawOffset;
             this.randomPitchOffset = source.randomPitchOffset;
+            this.humanYawOffset = source.humanYawOffset;
+            this.humanPitchOffset = source.humanPitchOffset;
+            this.targetHumanYawOffset = source.targetHumanYawOffset;
+            this.targetHumanPitchOffset = source.targetHumanPitchOffset;
+            this.humanizationTicksRemaining = source.humanizationTicksRemaining;
         }
 
         @Override
@@ -223,6 +233,9 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
             desiredYaw += this.randomYawOffset;
             desiredPitch += this.randomPitchOffset;
 
+            desiredYaw += this.humanYawOffset;
+            desiredPitch += this.humanPitchOffset;
+
             return new Rotation(
                     this.calculateMouseMove(prev.getYaw(), desiredYaw),
                     this.calculateMouseMove(prev.getPitch(), desiredPitch)
@@ -231,16 +244,19 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
 
         @Override
         public final void tick() {
+            final Settings settings = Baritone.settings();
             // randomLooking
-            this.randomYawOffset = (this.rand.nextDouble() - 0.5) * Baritone.settings().randomLooking.value;
-            this.randomPitchOffset = (this.rand.nextDouble() - 0.5) * Baritone.settings().randomLooking.value;
+            this.randomYawOffset = (this.rand.nextDouble() - 0.5) * settings.randomLooking.value;
+            this.randomPitchOffset = (this.rand.nextDouble() - 0.5) * settings.randomLooking.value;
 
             // randomLooking113
             double random = this.rand.nextDouble() - 0.5;
             if (Math.abs(random) < 0.1) {
                 random *= 4;
             }
-            this.randomYawOffset += random * Baritone.settings().randomLooking113.value;
+            this.randomYawOffset += random * settings.randomLooking113.value;
+
+            this.updateHumanizedRotations(settings);
         }
 
         @Override
@@ -295,6 +311,40 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
             return current + mouseToAngle(deltaPx);
         }
 
+        private void updateHumanizedRotations(Settings settings) {
+            if (!settings.antiCheatCompatibility.value || !settings.antiCheatHumanization.value) {
+                resetHumanizedRotations();
+                return;
+            }
+
+            if (this.humanizationTicksRemaining-- <= 0) {
+                final float maxAngle = Math.max(0.0f, settings.antiCheatHumanizationAngle.value);
+                this.targetHumanYawOffset = (float) ((this.rand.nextDouble() * 2.0 - 1.0) * maxAngle);
+                this.targetHumanPitchOffset = (float) ((this.rand.nextDouble() * 2.0 - 1.0) * maxAngle * 0.7f);
+
+                final int baseInterval = Math.max(1, settings.antiCheatHumanizationInterval.value);
+                final int variance = Math.max(1, baseInterval);
+                this.humanizationTicksRemaining = baseInterval / 2 + boundedRandom(variance);
+            }
+
+            this.humanYawOffset += (this.targetHumanYawOffset - this.humanYawOffset) * 0.35f;
+            this.humanPitchOffset += (this.targetHumanPitchOffset - this.humanPitchOffset) * 0.35f;
+        }
+
+        private void resetHumanizedRotations() {
+            this.targetHumanYawOffset = 0.0f;
+            this.targetHumanPitchOffset = 0.0f;
+            this.humanYawOffset *= 0.5f;
+            this.humanPitchOffset *= 0.5f;
+            this.humanizationTicksRemaining = 0;
+            if (Math.abs(this.humanYawOffset) < 1.0E-4f) {
+                this.humanYawOffset = 0.0f;
+            }
+            if (Math.abs(this.humanPitchOffset) < 1.0E-4f) {
+                this.humanPitchOffset = 0.0f;
+            }
+        }
+
         private double angleToMouse(float angleDelta) {
             final float minAngleChange = mouseToAngle(1);
             return Math.round(angleDelta / minAngleChange);
@@ -304,6 +354,13 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
             // casting float literals to double gets us the precise values used by mc
             final double f = ctx.minecraft().options.sensitivity().get() * (double) 0.6f + (double) 0.2f;
             return (float) (mouseDelta * f * f * f * 8.0d) * 0.15f; // yes, one double and one float scaling factor
+        }
+
+        private int boundedRandom(int bound) {
+            if (bound <= 1) {
+                return 0;
+            }
+            return (int) (this.rand.nextDouble() * bound);
         }
     }
 
