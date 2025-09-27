@@ -126,6 +126,8 @@ public class ProguardTask extends BaritoneGradleTask {
 
     private void generateConfigs() throws Exception {
         Files.copy(getRootRelativeFile(PROGUARD_CONFIG_TEMPLATE), getTemporaryFile(PROGUARD_CONFIG_DEST), StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(getRootRelativeFile(PROGUARD_DICTIONARY), getTemporaryFile(PROGUARD_DICTIONARY_DEST), StandardCopyOption.REPLACE_EXISTING);
+        Files.copy(getRootRelativeFile(PROGUARD_PACKAGE_DICTIONARY), getTemporaryFile(PROGUARD_PACKAGE_DICTIONARY_DEST), StandardCopyOption.REPLACE_EXISTING);
 
         // Setup the template that will be used to derive the API and Standalone configs
         List<String> template = Files.readAllLines(getTemporaryFile(PROGUARD_CONFIG_DEST));

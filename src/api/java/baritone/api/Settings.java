@@ -154,6 +154,22 @@ public final class Settings {
     public final Setting<Boolean> allowWaterBucketFall = new Setting<>(true);
 
     /**
+     * Enable the experimental seed-based macro planner that predicts terrain from a configured seed.
+     * Disabled by default so existing behavior is unchanged unless explicitly toggled.
+     */
+    public final Setting<Boolean> seedBasedPrediction = new Setting<>(false);
+
+    /**
+     * The last configured world seed for predictive planning. Requires {@link #seedPredictionSeedConfigured} to be true.
+     */
+    public final Setting<Long> seedPredictionSeed = new Setting<>(0L);
+
+    /**
+     * Tracks whether a predictive planning seed has been explicitly provided by the user.
+     */
+    public final Setting<Boolean> seedPredictionSeedConfigured = new Setting<>(false);
+
+    /**
      * Allow Baritone to assume it can walk on still water just like any other block.
      * This functionality is assumed to be provided by a separate library that might have imported Baritone.
      * <p>
@@ -795,6 +811,28 @@ public final class Settings {
      * directions other than forward, which is picken up by more "advanced" anticheats like AAC, but not NCP.
      */
     public final Setting<Boolean> antiCheatCompatibility = new Setting<>(true);
+
+    /**
+     * Applies a subtle "humanization" layer while {@link #antiCheatCompatibility} is enabled. The layer introduces
+     * small rotational drift and movement variations so that Baritone's control inputs look closer to real player
+     * behaviour for modern anti-cheat checks.
+     */
+    public final Setting<Boolean> antiCheatHumanization = new Setting<>(true);
+
+    /**
+     * The maximum angle (in degrees) that the humanization layer may drift rotations away from the exact target.
+     */
+    public final Setting<Float> antiCheatHumanizationAngle = new Setting<>(0.45f);
+
+    /**
+     * The maximum offset applied to the player's strafe/forward impulses while the humanization layer is active.
+     */
+    public final Setting<Float> antiCheatHumanizationMovement = new Setting<>(0.12f);
+
+    /**
+     * Average amount of ticks between humanization adjustments. Larger values slow down how often new offsets are picked.
+     */
+    public final Setting<Integer> antiCheatHumanizationInterval = new Setting<>(6);
 
     /**
      * Exclusively use cached chunks for pathing

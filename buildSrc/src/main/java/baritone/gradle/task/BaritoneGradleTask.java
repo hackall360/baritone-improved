@@ -43,6 +43,10 @@ class BaritoneGradleTask extends DefaultTask {
             PROGUARD_API_CONFIG             = "api.pro",
             PROGUARD_STANDALONE_CONFIG      = "standalone.pro",
             PROGUARD_EXPORT_PATH            = "proguard_out.jar",
+            PROGUARD_DICTIONARY             = "scripts/obfuscation-dictionary.txt",
+            PROGUARD_DICTIONARY_DEST        = "obfuscation-dictionary.txt",
+            PROGUARD_PACKAGE_DICTIONARY     = "scripts/package-obfuscation-dictionary.txt",
+            PROGUARD_PACKAGE_DICTIONARY_DEST = "package-obfuscation-dictionary.txt",
             PROGUARD_MAPPING_DIR            = "mapping",
 
             ARTIFACT_STANDARD           = "%s-%s.jar",

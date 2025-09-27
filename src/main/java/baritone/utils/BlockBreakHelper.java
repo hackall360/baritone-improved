@@ -18,11 +18,15 @@
 package baritone.utils;
 
 import baritone.api.BaritoneAPI;
+import baritone.api.IBaritone;
+import baritone.api.behavior.humanization.HumanizationProfileSnapshot;
 import baritone.api.utils.IPlayerContext;
 import baritone.utils.accessor.IPlayerControllerMP;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+
+import java.util.Random;
 
 /**
  * @author Brady
@@ -35,6 +39,7 @@ public final class BlockBreakHelper {
     private final IPlayerContext ctx;
     private boolean wasHitting;
     private int breakDelayTimer = 0;
+    private final Random humanRandom = new Random();
 
     BlockBreakHelper(IPlayerContext ctx) {
         this.ctx = ctx;
@@ -70,6 +75,7 @@ public final class BlockBreakHelper {
                 if (ctx.playerController().hasBrokenBlock()) { // block broken this tick
                     // break delay timer only applies for multi-tick block breaks like vanilla
                     breakDelayTimer = BaritoneAPI.getSettings().blockBreakSpeed.value - BASE_BREAK_DELAY;
+                    breakDelayTimer += sampleHumanBreakDelay();
                     // must reset controller's destroy delay to prevent the client from delaying itself unnecessarily
                     ((IPlayerControllerMP) ctx.minecraft().gameMode).setDestroyDelay(0);
                 }
@@ -83,5 +89,31 @@ public final class BlockBreakHelper {
         } else {
             wasHitting = false;
         }
+    }
+
+    private int sampleHumanBreakDelay() {
+        if (!shouldHumanize()) {
+            return 0;
+        }
+        final IBaritone baritone = BaritoneAPI.getProvider().getBaritoneForPlayer(ctx.player());
+        if (baritone == null) {
+            return 0;
+        }
+        final HumanizationProfileSnapshot snapshot = baritone.getHumanizationBehavior().snapshot();
+        final HumanizationProfileSnapshot.RunningStat downtime = snapshot.getBlockBreakDowntime();
+        if (!downtime.hasSamples()) {
+            return 0;
+        }
+        double mean = Math.max(0.0, downtime.getMean());
+        double std = downtime.getStdDev();
+        double sample = std > 0.0 ? humanRandom.nextGaussian() * std + mean : mean;
+        if (downtime.getCount() < 3) {
+            sample = mean;
+        }
+        return Math.max(0, (int) Math.round(sample));
+    }
+
+    private boolean shouldHumanize() {
+        return BaritoneAPI.getSettings().antiCheatCompatibility.value && BaritoneAPI.getSettings().antiCheatHumanization.value && ctx.player() != null;
     }
 }
