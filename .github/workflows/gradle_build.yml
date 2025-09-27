@@ -11,6 +11,8 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    env:
+      CI: true
 
     steps:
     - uses: actions/checkout@v4
@@ -24,20 +26,32 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
+    - name: Determine mod version
+      id: version
+      run: |
+        VERSION=$(git describe --always --tags --first-parent --dirty)
+        VERSION=${VERSION#v}
+        echo "mod_version=$VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Remove previous build outputs
+      run: rm -rf dist mapping
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-      
-    - name: Build with Gradle
-      run: ./gradlew build -Pmod_version="$(git describe --always --tags --first-parent | cut -c2-)"
 
-    - name: Archive Artifacts
+    - name: Build with Gradle
+      run: ./gradlew --no-daemon clean build --stacktrace -Pmod_version="${{ steps.version.outputs.mod_version }}"
+
+    - name: Upload distribution artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Artifacts
+        name: dist-artifacts
         path: dist/
-        
-    - name: Archive mapping.txt
+        if-no-files-found: error
+
+    - name: Upload Proguard mappings
       uses: actions/upload-artifact@v4
       with:
-        name: Mappings
+        name: proguard-mappings
         path: mapping/
+        if-no-files-found: error
