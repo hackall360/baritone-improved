@@ -572,6 +572,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         if (feet.getY() == realStart.getY() && Math.abs(sub.getX()) <= 1 && Math.abs(sub.getZ()) <= 1) {
             realStart = feet;
         }
+        baritone.getSeedPrediction().applySeedFavoring(realStart, transformed, favoring, context, previous);
         return new AStarPathFinder(realStart, start.getX(), start.getY(), start.getZ(), transformed, favoring, context);
 
     }

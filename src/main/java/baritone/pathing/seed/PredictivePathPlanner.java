@@ -1,8 +1,10 @@
 package baritone.pathing.seed;
 
+import baritone.api.Settings;
 import baritone.api.utils.BetterBlockPos;
 import baritone.cache.seed.RegionLayout;
 import baritone.cache.seed.SeedSummaryManager;
+import baritone.cache.seed.SurfaceMetrics;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,14 +23,16 @@ import java.util.Set;
 public final class PredictivePathPlanner {
 
     private final SeedSummaryManager summaries;
+    private final Settings settings;
 
-    public PredictivePathPlanner(SeedSummaryManager summaries) {
+    public PredictivePathPlanner(SeedSummaryManager summaries, Settings settings) {
         this.summaries = Objects.requireNonNull(summaries);
+        this.settings = Objects.requireNonNull(settings);
     }
 
     public PlannerResult plan(BetterBlockPos start, BetterBlockPos goal, PredictivePlannerOptions options) {
         options = options != null ? options : PredictivePlannerOptions.defaults();
-        MacroGraph graph = new MacroGraph(summaries, options.macroTileSize());
+        MacroGraph graph = new MacroGraph(summaries, settings, options.macroTileSize(), options.preferUnderground());
         MacroNode startNode = graph.nodeFor(start);
         MacroNode goalNode = graph.nodeFor(goal);
         if (!graph.isPassable(goalNode)) {
@@ -95,11 +99,15 @@ public final class PredictivePathPlanner {
 
     private static final class MacroGraph {
         private final SeedSummaryManager summaries;
+        private final Settings settings;
         private final int macroTileSize;
+        private final boolean preferUnderground;
 
-        private MacroGraph(SeedSummaryManager summaries, int macroTileSize) {
+        private MacroGraph(SeedSummaryManager summaries, Settings settings, int macroTileSize, boolean preferUnderground) {
             this.summaries = summaries;
+            this.settings = settings;
             this.macroTileSize = Math.max(1, macroTileSize);
+            this.preferUnderground = preferUnderground;
         }
 
         MacroNode nodeFor(BetterBlockPos pos) {
@@ -111,16 +119,21 @@ public final class PredictivePathPlanner {
         }
 
         boolean isPassable(MacroNode node) {
+            boolean sawData = false;
             for (int dz = 0; dz < macroTileSize; dz++) {
                 for (int dx = 0; dx < macroTileSize; dx++) {
                     int chunkX = node.tileX * macroTileSize + dx;
                     int chunkZ = node.tileZ * macroTileSize + dz;
-                    if (summaries.hasPassableSurface(chunkX, chunkZ)) {
-                        return true;
+                    SurfaceMetrics metrics = summaries.metrics(chunkX, chunkZ);
+                    if (metrics != SurfaceMetrics.EMPTY) {
+                        sawData = true;
+                        if (metrics.isViable(settings, preferUnderground)) {
+                            return true;
+                        }
                     }
                 }
             }
-            return false;
+            return !sawData;
         }
 
         Iterable<MacroNode> neighbors(MacroNode node) {
@@ -133,7 +146,22 @@ public final class PredictivePathPlanner {
         }
 
         double cost(MacroNode a, MacroNode b) {
-            return a.tileX == b.tileX || a.tileZ == b.tileZ ? 1 : Math.sqrt(2);
+            double distance = (a.tileX == b.tileX || a.tileZ == b.tileZ) ? 1.0 : Math.sqrt(2);
+            double aggregate = 0.0;
+            int samples = 0;
+            for (int dz = 0; dz < macroTileSize; dz++) {
+                for (int dx = 0; dx < macroTileSize; dx++) {
+                    int chunkX = b.tileX * macroTileSize + dx;
+                    int chunkZ = b.tileZ * macroTileSize + dz;
+                    SurfaceMetrics metrics = summaries.metrics(chunkX, chunkZ);
+                    if (metrics != SurfaceMetrics.EMPTY) {
+                        aggregate += metrics.traversalCost(settings, preferUnderground);
+                        samples++;
+                    }
+                }
+            }
+            double bias = samples > 0 ? aggregate / samples : 1.0;
+            return distance * bias;
         }
 
         BetterBlockPos tileCenter(MacroNode node) {
@@ -141,7 +169,13 @@ public final class PredictivePathPlanner {
             int chunkZ = node.tileZ * macroTileSize + macroTileSize / 2;
             int blockX = chunkX * RegionLayout.CHUNK_SIZE + RegionLayout.CHUNK_SIZE / 2;
             int blockZ = chunkZ * RegionLayout.CHUNK_SIZE + RegionLayout.CHUNK_SIZE / 2;
-            int surface = summaries.topY(chunkX, chunkZ, RegionLayout.CHUNK_SIZE / 2, RegionLayout.CHUNK_SIZE / 2);
+            SurfaceMetrics metrics = summaries.metrics(chunkX, chunkZ);
+            int surface;
+            if (metrics != SurfaceMetrics.EMPTY && metrics.passableRatio() > 0.0) {
+                surface = (int) Math.round(metrics.averageY());
+            } else {
+                surface = summaries.topY(chunkX, chunkZ, RegionLayout.CHUNK_SIZE / 2, RegionLayout.CHUNK_SIZE / 2);
+            }
             return new BetterBlockPos(blockX, surface, blockZ);
         }
     }

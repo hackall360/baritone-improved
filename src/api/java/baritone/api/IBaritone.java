@@ -24,6 +24,7 @@ import baritone.api.cache.IWorldProvider;
 import baritone.api.command.manager.ICommandManager;
 import baritone.api.event.listener.IEventBus;
 import baritone.api.pathing.calc.IPathingControlManager;
+import baritone.api.pathing.seed.ISeedPathing;
 import baritone.api.process.*;
 import baritone.api.selection.ISelectionManager;
 import baritone.api.utils.IInputOverrideHandler;
@@ -150,4 +151,9 @@ public interface IBaritone {
      * Open click
      */
     void openClick();
+
+    /**
+     * @return The seed-based predictive pathing controller for this baritone instance.
+     */
+    ISeedPathing getSeedPathing();
 }

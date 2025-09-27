@@ -52,4 +52,8 @@ public final class Favoring {
     public double calculate(long hash) {
         return favorings.get(hash);
     }
+
+    public void multiply(long hash, double coefficient) {
+        favorings.put(hash, favorings.get(hash) * coefficient);
+    }
 }

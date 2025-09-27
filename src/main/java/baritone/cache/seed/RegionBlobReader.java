@@ -1,6 +1,7 @@
 package baritone.cache.seed;
 
 import java.nio.ByteBuffer;
+import java.util.BitSet;
 import java.util.Objects;
 
 /**
@@ -79,6 +80,15 @@ public final class RegionBlobReader {
         return cache.isPassable(localX, localZ);
     }
 
+    public BitSet passabilityBits(int chunkX, int chunkZ) {
+        ChunkSummaryRecordView view = view(chunkX, chunkZ);
+        if (view == null || !view.hasField(ChunkField.PASSABILITY)) {
+            return null;
+        }
+        byte[] raw = view.readField(ChunkField.PASSABILITY, compressor);
+        return PassabilityField.unpack(raw);
+    }
+
     public boolean hasPassableSurface(int chunkX, int chunkZ) {
         int index = chunkIndex(chunkX, chunkZ);
         if (index < 0) {
@@ -103,6 +113,15 @@ public final class RegionBlobReader {
         byte[] raw = view.readField(ChunkField.HEIGHTS, compressor);
         PackedHeightField field = PackedHeightField.decode(raw);
         return field.topY(localX, localZ);
+    }
+
+    public PackedHeightField heightField(int chunkX, int chunkZ) {
+        ChunkSummaryRecordView view = view(chunkX, chunkZ);
+        if (view == null || !view.hasField(ChunkField.HEIGHTS)) {
+            return null;
+        }
+        byte[] raw = view.readField(ChunkField.HEIGHTS, compressor);
+        return PackedHeightField.decode(raw);
     }
 
     private ChunkSummaryRecordView view(int chunkX, int chunkZ) {
