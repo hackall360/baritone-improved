@@ -18,11 +18,16 @@
 package baritone.utils;
 
 import baritone.Baritone;
+import baritone.api.BaritoneAPI;
+import baritone.api.IBaritone;
+import baritone.api.behavior.humanization.HumanizationProfileSnapshot;
 import baritone.api.utils.IPlayerContext;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+
+import java.util.Random;
 
 public class BlockPlaceHelper {
     // base ticks between places caused by tick logic
@@ -30,6 +35,7 @@ public class BlockPlaceHelper {
 
     private final IPlayerContext ctx;
     private int rightClickTimer;
+    private final Random humanRandom = new Random();
 
     BlockPlaceHelper(IPlayerContext playerContext) {
         this.ctx = playerContext;
@@ -45,6 +51,7 @@ public class BlockPlaceHelper {
             return;
         }
         rightClickTimer = Baritone.settings().rightClickSpeed.value - BASE_PLACE_DELAY;
+        rightClickTimer += sampleHumanPlaceDelay();
         for (InteractionHand hand : InteractionHand.values()) {
             if (ctx.playerController().processRightClickBlock(ctx.player(), ctx.world(), hand, (BlockHitResult) mouseOver) == InteractionResult.SUCCESS) {
                 ctx.player().swing(hand);
@@ -54,5 +61,31 @@ public class BlockPlaceHelper {
                 return;
             }
         }
+    }
+
+    private int sampleHumanPlaceDelay() {
+        if (!shouldHumanize()) {
+            return 0;
+        }
+        final IBaritone baritone = BaritoneAPI.getProvider().getBaritoneForPlayer(ctx.player());
+        if (baritone == null) {
+            return 0;
+        }
+        final HumanizationProfileSnapshot snapshot = baritone.getHumanizationBehavior().snapshot();
+        final HumanizationProfileSnapshot.RunningStat interval = snapshot.getBlockPlaceInterval();
+        if (!interval.hasSamples()) {
+            return 0;
+        }
+        double mean = Math.max(0.0, interval.getMean());
+        double std = interval.getStdDev();
+        double sample = std > 0.0 ? humanRandom.nextGaussian() * std + mean : mean;
+        if (interval.getCount() < 3) {
+            sample = mean;
+        }
+        return Math.max(0, (int) Math.round(sample));
+    }
+
+    private boolean shouldHumanize() {
+        return Baritone.settings().antiCheatCompatibility.value && Baritone.settings().antiCheatHumanization.value && ctx.player() != null;
     }
 }

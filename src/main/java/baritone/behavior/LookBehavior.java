@@ -18,6 +18,8 @@
 package baritone.behavior;
 
 import baritone.Baritone;
+import baritone.api.BaritoneAPI;
+import baritone.api.IBaritone;
 import baritone.api.Settings;
 import baritone.api.behavior.ILookBehavior;
 import baritone.api.behavior.look.IAimProcessor;
@@ -26,6 +28,7 @@ import baritone.api.event.events.*;
 import baritone.api.utils.IPlayerContext;
 import baritone.api.utils.Rotation;
 import baritone.behavior.look.ForkableRandom;
+import baritone.api.behavior.humanization.HumanizationProfileSnapshot;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 
 import java.util.ArrayDeque;
@@ -318,9 +321,15 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
             }
 
             if (this.humanizationTicksRemaining-- <= 0) {
-                final float maxAngle = Math.max(0.0f, settings.antiCheatHumanizationAngle.value);
-                this.targetHumanYawOffset = (float) ((this.rand.nextDouble() * 2.0 - 1.0) * maxAngle);
-                this.targetHumanPitchOffset = (float) ((this.rand.nextDouble() * 2.0 - 1.0) * maxAngle * 0.7f);
+                final HumanizationProfileSnapshot snapshot = resolveHumanizationSnapshot();
+                float yawAmplitude = Math.max(0.0f, settings.antiCheatHumanizationAngle.value);
+                float pitchAmplitude = yawAmplitude * 0.7f;
+                if (snapshot.hasRotationSamples()) {
+                    yawAmplitude = Math.max(yawAmplitude, (float) Math.min(10.0f, snapshot.getYawDelta().getMean() + snapshot.getYawDelta().getStdDev()));
+                    pitchAmplitude = Math.max(pitchAmplitude, (float) Math.min(10.0f, snapshot.getPitchDelta().getMean() + snapshot.getPitchDelta().getStdDev()));
+                }
+                this.targetHumanYawOffset = (float) ((this.rand.nextDouble() * 2.0 - 1.0) * yawAmplitude);
+                this.targetHumanPitchOffset = (float) ((this.rand.nextDouble() * 2.0 - 1.0) * pitchAmplitude);
 
                 final int baseInterval = Math.max(1, settings.antiCheatHumanizationInterval.value);
                 final int variance = Math.max(1, baseInterval);
@@ -361,6 +370,17 @@ public final class LookBehavior extends Behavior implements ILookBehavior {
                 return 0;
             }
             return (int) (this.rand.nextDouble() * bound);
+        }
+
+        private HumanizationProfileSnapshot resolveHumanizationSnapshot() {
+            if (ctx.player() == null) {
+                return HumanizationProfileSnapshot.EMPTY;
+            }
+            final IBaritone baritone = BaritoneAPI.getProvider().getBaritoneForPlayer(ctx.player());
+            if (baritone == null) {
+                return HumanizationProfileSnapshot.EMPTY;
+            }
+            return baritone.getHumanizationBehavior().snapshot();
         }
     }
 

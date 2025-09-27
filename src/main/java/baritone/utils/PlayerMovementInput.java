@@ -19,6 +19,7 @@ package baritone.utils;
 
 import baritone.Baritone;
 import baritone.api.Settings;
+import baritone.api.behavior.humanization.HumanizationProfileSnapshot;
 import baritone.api.utils.input.Input;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.world.phys.Vec2;
@@ -79,9 +80,13 @@ public class PlayerMovementInput extends ClientInput {
         final Settings settings = Baritone.settings();
         final boolean humanize = settings.antiCheatCompatibility.value && settings.antiCheatHumanization.value;
 
+        final HumanizationProfileSnapshot snapshot = humanize
+                ? handler.baritone.getHumanizationBehavior().snapshot()
+                : HumanizationProfileSnapshot.EMPTY;
+
         if (humanize) {
-            movement = applyMovementHumanization(movement, settings);
-            jumping = applyJumpHumanization(jumping, settings);
+            movement = applyMovementHumanization(movement, settings, snapshot);
+            jumping = applyJumpHumanization(jumping, settings, snapshot);
         } else {
             resetMovementHumanization();
         }
@@ -90,7 +95,7 @@ public class PlayerMovementInput extends ClientInput {
 
         boolean sprinting = handler.isInputForcedDown(Input.SPRINT);
         if (humanize) {
-            sprinting = applySprintHumanization(sprinting, settings);
+            sprinting = applySprintHumanization(sprinting, settings, snapshot);
         } else {
             resetSprintHumanization();
         }
@@ -98,16 +103,18 @@ public class PlayerMovementInput extends ClientInput {
         this.keyPresses = new net.minecraft.world.entity.player.Input(up, down, left, right, jumping, sneaking, sprinting);
     }
 
-    private Vec2 applyMovementHumanization(Vec2 base, Settings settings) {
+    private Vec2 applyMovementHumanization(Vec2 base, Settings settings, HumanizationProfileSnapshot snapshot) {
         if (Math.abs(base.x) < 1.0E-3f && Math.abs(base.y) < 1.0E-3f) {
             fadeMovementNoise();
             return base;
         }
 
         if (this.noiseTicksRemaining-- <= 0) {
-            final float maxMovement = Math.max(0.0f, settings.antiCheatHumanizationMovement.value);
-            this.targetStrafeNoise = randomInRange(maxMovement);
-            this.targetForwardNoise = randomInRange(maxMovement);
+            final float baseMovement = Math.max(0.0f, settings.antiCheatHumanizationMovement.value);
+            final float strafeAmplitude = resolveMovementAmplitude(baseMovement, snapshot.getStrafeDelta());
+            final float forwardAmplitude = resolveMovementAmplitude(baseMovement, snapshot.getForwardDelta());
+            this.targetStrafeNoise = randomInRange(strafeAmplitude);
+            this.targetForwardNoise = randomInRange(forwardAmplitude);
 
             final int baseInterval = Math.max(1, settings.antiCheatHumanizationInterval.value);
             final int variance = Math.max(1, baseInterval);
@@ -122,11 +129,11 @@ public class PlayerMovementInput extends ClientInput {
         return new Vec2(strafe, forward);
     }
 
-    private boolean applySprintHumanization(boolean sprinting, Settings settings) {
+    private boolean applySprintHumanization(boolean sprinting, Settings settings, HumanizationProfileSnapshot snapshot) {
         if (sprinting) {
             if (!this.lastSprintRequest) {
-                final int baseInterval = Math.max(1, settings.antiCheatHumanizationInterval.value);
-                this.sprintDelayTicks = 1 + this.humanRandom.nextInt(Math.max(1, baseInterval / 2));
+                final int baseInterval = Math.max(1, settings.antiCheatHumanizationInterval.value / 2);
+                this.sprintDelayTicks = sampleReactionDelay(snapshot.getSprintReactionTicks(), baseInterval, false);
             }
         } else {
             this.sprintDelayTicks = 0;
@@ -142,11 +149,11 @@ public class PlayerMovementInput extends ClientInput {
         return sprinting;
     }
 
-    private boolean applyJumpHumanization(boolean jumping, Settings settings) {
+    private boolean applyJumpHumanization(boolean jumping, Settings settings, HumanizationProfileSnapshot snapshot) {
         if (jumping) {
             if (!this.lastJumpRequest) {
-                final int baseInterval = Math.max(1, settings.antiCheatHumanizationInterval.value / 2);
-                this.jumpDelayTicks = baseInterval > 0 ? this.humanRandom.nextInt(baseInterval + 1) : 0;
+                final int baseInterval = Math.max(0, settings.antiCheatHumanizationInterval.value / 2);
+                this.jumpDelayTicks = sampleReactionDelay(snapshot.getJumpReactionTicks(), baseInterval, true);
             }
         } else {
             this.jumpDelayTicks = 0;
@@ -192,6 +199,34 @@ public class PlayerMovementInput extends ClientInput {
             return 0.0f;
         }
         return (float) ((this.humanRandom.nextDouble() * 2.0 - 1.0) * max);
+    }
+
+    private float resolveMovementAmplitude(float base, HumanizationProfileSnapshot.RunningStat stat) {
+        float amplitude = base;
+        if (stat.hasSamples()) {
+            double target = stat.getMean() + stat.getStdDev() * 0.5;
+            amplitude = Math.max(amplitude, (float) Math.min(0.75f, Math.abs(target)));
+        }
+        return amplitude;
+    }
+
+    private int sampleReactionDelay(HumanizationProfileSnapshot.RunningStat stat, int fallbackRange, boolean allowZero) {
+        if (stat.hasSamples()) {
+            double mean = Math.max(0.0, stat.getMean());
+            double std = stat.getStdDev();
+            double sample = std > 0.0 ? this.humanRandom.nextGaussian() * std + mean : mean;
+            if (stat.getCount() < 3) {
+                sample = mean;
+            }
+            return Math.max(0, (int) Math.round(sample));
+        }
+        if (fallbackRange <= 0) {
+            return allowZero ? 0 : 0;
+        }
+        if (allowZero) {
+            return this.humanRandom.nextInt(fallbackRange + 1);
+        }
+        return this.humanRandom.nextInt(Math.max(1, fallbackRange)) + 1;
     }
 
     private static float clamp(float value, float min, float max) {
