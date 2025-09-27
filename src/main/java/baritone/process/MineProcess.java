@@ -377,7 +377,13 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
             }
         }
 
+        // First, prune obviously invalid locations
         locs = prune(ctx, locs, filter, max, blacklist, dropped);
+
+        // Cluster vein blocks (6-neighbor) and prefer a representative close to the player
+        if (!locs.isEmpty()) {
+            locs = clusterVeins(ctx, locs, filter, max);
+        }
 
         if (!untracked.isEmpty() || (Baritone.settings().extendCacheOnThreshold.value && locs.size() < max)) {
             locs.addAll(BaritoneAPI.getProvider().getWorldScanner().scanChunkRadius(
@@ -392,6 +398,45 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
         locs.addAll(alreadyKnown);
 
         return prune(ctx, locs, filter, max, blacklist, dropped);
+    }
+
+    private static List<BlockPos> clusterVeins(CalculationContext ctx, List<BlockPos> seeds, BlockOptionalMetaLookup filter, int max) {
+        Set<BlockPos> visited = new HashSet<>();
+        List<BlockPos> representatives = new ArrayList<>();
+        BetterBlockPos feet = ctx.getBaritone().getPlayerContext().playerFeet();
+
+        for (BlockPos seed : seeds) {
+            if (visited.contains(seed)) continue;
+            Deque<BlockPos> dq = new ArrayDeque<>();
+            dq.add(seed);
+            visited.add(seed);
+            BlockPos best = seed;
+            double bestDist = feet.distSqr(seed);
+
+            while (!dq.isEmpty() && representatives.size() < max) {
+                BlockPos cur = dq.removeFirst();
+                // track best representative
+                double d = feet.distSqr(cur);
+                if (d < bestDist) { bestDist = d; best = cur; }
+
+                // 6-neighbors
+                int x = cur.getX(), y = cur.getY(), z = cur.getZ();
+                BlockPos[] nbrs = new BlockPos[] {
+                        new BlockPos(x+1,y,z), new BlockPos(x-1,y,z),
+                        new BlockPos(x,y+1,z), new BlockPos(x,y-1,z),
+                        new BlockPos(x,y,z+1), new BlockPos(x,y,z-1)
+                };
+                for (BlockPos nb : nbrs) {
+                    if (!visited.contains(nb) && filter.has(ctx.get(nb.getX(), nb.getY(), nb.getZ()))) {
+                        visited.add(nb);
+                        dq.addLast(nb);
+                    }
+                }
+            }
+            representatives.add(best);
+            if (representatives.size() >= max) break;
+        }
+        return representatives;
     }
 
     private boolean addNearby() {

@@ -53,6 +53,26 @@ dependencies {
         shadowCommon sourceSet.output
     }
     shadowCommon "dev.babbaj:nether-pathfinder:${project.nether_pathfinder_version}"
+
+    // JCuda optional embedding for Forge: enable with -PuseJCuda=true (same flags as tweaker)
+    def useJCuda = project.findProperty('useJCuda')?.toString()?.toBoolean() ?: false
+    def jcudaVersion = (project.findProperty('jcudaVersion')?.toString()) ?: '12.6.0'
+    if (jcudaVersion) {
+        if (jcudaVersion.contains('_') || jcudaVersion.contains('-')) {
+            jcudaVersion = jcudaVersion.replace('_','.').replace('-','.')
+        }
+    }
+    if (useJCuda) {
+        runtimeOnly("org.jcuda:jcuda:${jcudaVersion}") { transitive = false }
+        runtimeOnly("org.jcuda:jcuda-natives:${jcudaVersion}:windows-x86_64")
+        runtimeOnly("org.jcuda:jcublas:${jcudaVersion}") { transitive = false }
+        runtimeOnly("org.jcuda:jcublas-natives:${jcudaVersion}:windows-x86_64")
+        runtimeOnly("org.jcuda:jcusparse:${jcudaVersion}") { transitive = false }
+        runtimeOnly("org.jcuda:jcusparse-natives:${jcudaVersion}:windows-x86_64")
+        runtimeOnly("org.jcuda:jcusolver:${jcudaVersion}") { transitive = false }
+        runtimeOnly("org.jcuda:jcusolver-natives:${jcudaVersion}:windows-x86_64")
+        runtimeOnly("net.java.dev.jna:jna:5.14.0")
+    }
 }
 
 processResources {
@@ -66,6 +86,30 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowCommon]
     archiveClassifier.set "dev-shadow"
+    // Also embed JCuda libs into the shaded jar so remap/proguard retain them
+    def _useJCudaShadow = project.findProperty('useJCuda')?.toString()?.toBoolean() ?: false
+    if (_useJCudaShadow) {
+        into('META-INF/jarjar') {
+            from { project.configurations.runtimeClasspath }
+            include '**/jcuda-*.jar', '**/jcuda-natives-*.jar',
+                    '**/jcublas-*.jar', '**/jcublas-natives-*.jar',
+                    '**/jcusparse-*.jar', '**/jcusparse-natives-*.jar',
+                    '**/jcusolver-*.jar', '**/jcusolver-natives-*.jar',
+                    '**/jna-*.jar'
+        }
+        doFirst {
+            def files = project.configurations.runtimeClasspath.files.findAll { f ->
+                f.name.startsWith('jcuda-') || f.name.startsWith('jcublas-') ||
+                f.name.startsWith('jcusparse-') || f.name.startsWith('jcusolver-') ||
+                f.name.startsWith('jna-')
+            }
+            if (!files.isEmpty()) {
+                def names = files.collect { it.name }.join(' ')
+                manifest.attributes([ 'ContainedDeps': names ])
+                println "[Forge/shadowJar] Embedded ContainedDeps: ${names}"
+            }
+        }
+    }
 }
 
 remapJar {
@@ -86,6 +130,31 @@ jar {
                 'Implementation-Version': version,
         )
     }
+
+    // Embed JCuda libraries as ContainedDeps for Forge to auto-load
+    def _useJCuda = project.findProperty('useJCuda')?.toString()?.toBoolean() ?: false
+    if (_useJCuda) {
+        into('META-INF/jarjar') {
+            from { project.configurations.runtimeClasspath }
+            include '**/jcuda-*.jar', '**/jcuda-natives-*.jar',
+                    '**/jcublas-*.jar', '**/jcublas-natives-*.jar',
+                    '**/jcusparse-*.jar', '**/jcusparse-natives-*.jar',
+                    '**/jcusolver-*.jar', '**/jcusolver-natives-*.jar',
+                    '**/jna-*.jar'
+        }
+        doFirst {
+            def files = project.configurations.runtimeClasspath.files.findAll { f ->
+                f.name.startsWith('jcuda-') || f.name.startsWith('jcublas-') ||
+                f.name.startsWith('jcusparse-') || f.name.startsWith('jcusolver-') ||
+                f.name.startsWith('jna-')
+            }
+            if (!files.isEmpty()) {
+                def names = files.collect { it.name }.join(' ')
+                manifest.attributes([ 'ContainedDeps': names ])
+                println "[Forge] Embedded ContainedDeps: ${names}"
+            }
+        }
+    }
 }
 
 components.java {
@@ -104,6 +173,69 @@ task createDist(type: CreateDistTask, dependsOn: proguard) {
 }
 
 build.finalizedBy(createDist)
+
+// After producing the distribution jar, embed JCuda libs using Forge's ContainedDeps mechanism
+def embedDepsTask = tasks.register("embedForgeContainedDeps") {
+    dependsOn tasks.named("createDist")
+    onlyIf { (project.findProperty('useJCuda')?.toString()?.toBoolean() ?: false) }
+    doLast {
+        def rtFiles = project.configurations.runtimeClasspath.files.findAll { f ->
+            f.name.startsWith('jcuda-') || f.name.startsWith('jcublas-') ||
+            f.name.startsWith('jcusparse-') || f.name.startsWith('jcusolver-') ||
+            f.name.startsWith('jna-')
+        }
+        if (rtFiles.isEmpty()) {
+            println "[Forge/embed] No runtime JCuda/JNA files to embed"
+            return
+        }
+        def distJar = rootProject.file("dist/baritone-standalone-forge-${rootProject.version}.jar")
+        if (!distJar.exists()) {
+            throw new GradleException("Forge dist jar not found: ${distJar}")
+        }
+        // Save a CPU-only copy before embedding
+        def cpuJar = rootProject.file("dist/baritone-standalone-forge-${rootProject.version}-cpu.jar")
+        org.apache.tools.ant.util.FileUtils.getFileUtils().copyFile(distJar, cpuJar)
+        def tmpDir = new File(buildDir, "embed-forge-tmp")
+        if (tmpDir.exists()) tmpDir.deleteDir()
+        tmpDir.mkdirs()
+        // Unzip
+        copy { from zipTree(distJar); into tmpDir }
+        // Copy deps into META-INF/jarjar
+        def jj = new File(tmpDir, "META-INF/jarjar")
+        jj.mkdirs()
+        rtFiles.each { f -> copy { from f; into jj } }
+        // Update MANIFEST.MF with ContainedDeps
+        def mfFile = new File(tmpDir, "META-INF/MANIFEST.MF")
+        def mf = new java.util.jar.Manifest(new FileInputStream(mfFile))
+        def names = rtFiles.collect { it.name }.join(' ')
+        mf.mainAttributes.putValue("ContainedDeps", names)
+        mfFile.withOutputStream { os -> mf.write(os) }
+        // Repack
+        ant.zip(destfile: distJar, basedir: tmpDir)
+        println "[Forge/embed] CPU-only jar saved as ${cpuJar.name}"
+        println "[Forge/embed] Embedded ContainedDeps into ${distJar.name}: ${names}"
+
+        // Also produce no-mixin diagnostic variants
+        def makeNoMixin = { File src, String suffix ->
+            def tmp2 = new File(buildDir, "embed-nomixin-tmp")
+            if (tmp2.exists()) tmp2.deleteDir()
+            tmp2.mkdirs()
+            copy { from zipTree(src); into tmp2 }
+            def mf2File = new File(tmp2, "META-INF/MANIFEST.MF")
+            def mf2 = new java.util.jar.Manifest(new FileInputStream(mf2File))
+            mf2.mainAttributes.remove(new java.util.jar.Attributes.Name("MixinConfigs"))
+            mf2.mainAttributes.remove(new java.util.jar.Attributes.Name("MixinConnector"))
+            mf2File.withOutputStream { os -> mf2.write(os) }
+            def out = new File(src.parentFile, src.name.replace(".jar", "-${suffix}.jar"))
+            ant.zip(destfile: out, basedir: tmp2)
+            println "[Forge/embed] Wrote diagnostic no-mixin jar: ${out.name}"
+        }
+        makeNoMixin(cpuJar, "nomixin")
+        makeNoMixin(distJar, "nomixin")
+    }
+}
+
+tasks.named("build").configure { finalizedBy(embedDepsTask) }
 
 publishing {
     publications {

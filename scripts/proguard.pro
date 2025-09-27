@@ -22,6 +22,19 @@
 # progard doesn't like signature polymorphism
 -dontwarn java.lang.invoke.MethodHandle
 
+# Keep ML / acceleration libs (reflection-based usage)
+-keep class org.nd4j.** { *; }
+-dontwarn org.nd4j.**
+-keep class org.bytedeco.** { *; }
+-dontwarn org.bytedeco.**
+-dontwarn com.github.fommil.netlib.**
+ -dontwarn com.github.fommil.netlib.**
+-dontwarn jcuda.**
+# JNA is optional and only used when present for NVRTC fallback
+-dontwarn com.sun.jna.**
+ # DJL backends are optional and loaded via reflection
+ -dontwarn ai.djl.**
+
 # please do not change the comment below
 -keep class baritone.api.** { *; } # this is the keep api
 

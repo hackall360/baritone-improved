@@ -181,6 +181,161 @@ public final class Settings {
     public final Setting<Boolean> assumeSafeWalk = new Setting<>(false);
 
     /**
+     * Automatically eat food when below the configured hunger threshold while performing other tasks.
+     * Toggle with the "autoeat" setting or via chat using "#autoeat" / "#autoeat true|false".
+     * Off by default.
+     */
+    public final Setting<Boolean> autoeat = new Setting<>(false);
+
+    /**
+     * Hunger level at or below which auto-eat should trigger.
+     * Hunger in Minecraft is 0..20; default is 12 (i.e., 4 bars down = 8 points below full).
+     */
+    public final Setting<Integer> autoEatHungerThreshold = new Setting<>(12);
+
+    // fullbright setting has been removed (deprecated)
+
+    /**
+     * Automatically defend the player by engaging nearby threatening mobs when enabled.
+     * Toggle with "#defendSelf" or via settings.
+     */
+    public final Setting<Boolean> defendSelf = new Setting<>(false);
+
+    /**
+     * Maximum targeting range (in blocks) for combat.
+     */
+    public final Setting<Integer> combatTargetRange = new Setting<>(16);
+
+    /** Combat tuning: flee thresholds and behavior */
+    public final Setting<Double> combatDangerFleeThreshold = new Setting<>(2.0);
+    public final Setting<Double> combatDangerEatThreshold = new Setting<>(1.5);
+    public final Setting<Float> combatLowHpFlee = new Setting<>(10.0f);
+    public final Setting<Float> combatEatHpThreshold = new Setting<>(12.0f);
+    public final Setting<Integer> combatStrafeIntervalMs = new Setting<>(800);
+    public final Setting<Integer> combatFleeStrafeIntervalMs = new Setting<>(650);
+    public final Setting<Boolean> combatAllowCrits = new Setting<>(true);
+    public final Setting<Integer> combatCritJumpCooldownMs = new Setting<>(500);
+    public final Setting<Integer> combatAttackCooldownMsMin = new Setting<>(350);
+    public final Setting<Integer> combatRunAwayDistance = new Setting<>(12);
+
+    /** Target selection / type preferences */
+    public final Setting<Boolean> combatPrioritizeRanged = new Setting<>(true);
+    public final Setting<Double> combatCreeperTargetPenalty = new Setting<>(1.0);
+    public final Setting<Double> combatTargetHpWeight = new Setting<>(0.5); // 0..1 scaled into score
+
+    /** Per‑mob tactics: creepers */
+    public final Setting<Boolean> combatEngageCreepers = new Setting<>(true);
+    public final Setting<Double> creeperDangerDistance = new Setting<>(6.0); // flee if closer than this
+    public final Setting<Double> creeperEngageMinDistance = new Setting<>(2.0);
+    public final Setting<Double> creeperEngageMaxDistance = new Setting<>(3.5);
+    public final Setting<Integer> creeperBackoffMs = new Setting<>(600);
+
+    /** Per‑mob tactics: ranged mobs */
+    public final Setting<Boolean> combatEngageRanged = new Setting<>(true);
+    public final Setting<Boolean> combatRangedLOSBoost = new Setting<>(true);
+
+    /** Per‑mob tactics: ghasts */
+    public final Setting<Boolean> combatEngageGhasts = new Setting<>(false);
+
+    /** Dynamic avoidance tuning (applied each path calc) */
+    public final Setting<Integer> avoidanceCreeperRadiusDelta = new Setting<>(3);
+    public final Setting<Double> avoidanceCreeperCoeffMin = new Setting<>(3.0);
+    public final Setting<Integer> avoidanceRangedRadiusDelta = new Setting<>(2);
+    public final Setting<Double> avoidanceRangedCoeffMin = new Setting<>(1.8);
+    public final Setting<Integer> avoidanceMeleeRadiusMin = new Setting<>(5);
+    public final Setting<Double> avoidanceMeleeCoeffMin = new Setting<>(1.2);
+    public final Setting<Integer> avoidanceLOSRadiusDelta = new Setting<>(2);
+    public final Setting<Double> avoidanceLOSCoeffMin = new Setting<>(2.1);
+    public final Setting<Boolean> avoidancePredictionEnabled = new Setting<>(true);
+    public final Setting<Integer> avoidancePredictionTicksShort = new Setting<>(5);
+    public final Setting<Integer> avoidancePredictionTicksLong = new Setting<>(10);
+    public final Setting<Double> avoidancePredictionCoeffMin = new Setting<>(1.3);
+    public final Setting<Integer> avoidancePredictionRadiusMin = new Setting<>(3);
+
+    /** Acceleration and parallelism */
+    public final Setting<Boolean> enableGpuAcceleration = new Setting<>(true);
+    public final Setting<Boolean> parallelNeighborEval = new Setting<>(false);
+    public final Setting<Integer> parallelism = new Setting<>(Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
+
+    /**
+     * Hierarchical pathing (experimental): builds a coarse abstract graph over chunks and
+     * plans a high-level corridor (ARA* + ALT heuristic), then uses micro A* to traverse
+     * between waypoints. Disabled by default for safety.
+     */
+    public final Setting<Boolean> enableHierarchicalPathing = new Setting<>(true);
+    /** Minimum planar distance (blocks) before hierarchical planning is considered. */
+    public final Setting<Integer> hpaMinDistance = new Setting<>(256);
+    /** Horizontal cluster size (blocks) used for abstract graph; typically a chunk (16). */
+    public final Setting<Integer> hpaClusterSizeXZ = new Setting<>(16);
+    /** Vertical band height (blocks) for clustering; corridor itself is 2D but band tags aid guidance. */
+    public final Setting<Integer> hpaBandHeight = new Setting<>(16);
+    /** Waypoint spacing in blocks along the abstract route; lower = more segments. */
+    public final Setting<Integer> hpaWaypointStride = new Setting<>(128);
+    /** Use ALT landmarks for heuristic on the abstract graph. */
+    public final Setting<Boolean> hpaUseALT = new Setting<>(true);
+    /** Number of ALT landmarks on the abstract graph. */
+    public final Setting<Integer> hpaALTLandmarks = new Setting<>(16);
+    /** ARA* weight (>= 1.0). 1.0 is optimal A*, larger gives faster but less optimal corridors. */
+    public final Setting<Double> hpaARAWeight = new Setting<>(1.8);
+    /** Validate expensive macro edges lazily (replan if a corridor hop is invalid at runtime). */
+    public final Setting<Boolean> hpaLazyValidation = new Setting<>(true);
+
+    /** Incremental local repairs: when blocks near the current path change, re-evaluate the segment. */
+    public final Setting<Boolean> hpaDynamicRepairEnabled = new Setting<>(true);
+    /** Radius (in blocks) around current path nodes that triggers a repair. */
+    public final Setting<Integer> hpaRepairRadius = new Setting<>(2);
+
+    /**
+     * Plan-ahead segments: number of future path segments to precompute while executing the current one.
+     * Includes only "next" segments beyond the current. Default 3 for smoother tasking.
+     */
+    public final Setting<Integer> planAheadSegments = new Setting<>(3);
+
+    /**
+     * Predictive worldgen integration. If enabled, the abstract graph may use predicted height/biome/structure cues
+     * to bias long-haul corridors. When seed is unavailable, it falls back to observed-chunk heuristics.
+     */
+    public final Setting<Boolean> usePredictiveWorldgen = new Setting<>(true);
+    /**
+     * Override the world seed (0 = auto-detect). In singleplayer, Baritone attempts to read the seed from the
+     * integrated server. In multiplayer, the seed is typically not exposed; provide it here if known.
+     */
+    public final Setting<Long> overrideWorldSeed = new Setting<>(0L);
+
+    /**
+     * Enable the seed cracking utility (manual via command). When true and no overrideWorldSeed is set,
+     * "#crackseed" can be used to attempt fast recovery of the world's lower-48-bit structure seed using
+     * known structure/feature positions and slime chunks. GPU acceleration is used when available.
+     */
+    @JavaOnly
+    public final Setting<Boolean> enableSeedCracker = new Setting<>(false);
+    /**
+     * When enabled, Baritone will auto-collect lightweight structure observations (village bells,
+     * ocean monument prismarine/sea lanterns, end city purpur) from loaded chunks to feed the seed cracker.
+     */
+    @JavaOnly
+    public final Setting<Boolean> autoCollectSeedObservations = new Setting<>(false);
+
+    /**
+     * If true, will retaliate against players that attacked us while Baritone is performing a task.
+     */
+    public final Setting<Boolean> defendSelfPlayers = new Setting<>(false);
+
+    /**
+     * Client-side guard against malicious packets/features often leveraged by hacked clients to annoy/crash/control.
+     * Default: on.
+     */
+    public final Setting<Boolean> antiAntiCheat = new Setting<>(false);
+    public final Setting<Boolean> antiPacketClampParticles = new Setting<>(false);
+    public final Setting<Boolean> antiPacketClampChat = new Setting<>(false);
+    public final Setting<Boolean> antiPacketClampSound = new Setting<>(false);
+    public final Setting<Boolean> antiPacketBlockResourcePack = new Setting<>(false);
+    public final Setting<Boolean> antiPacketBlockOpenScreens = new Setting<>(false);
+    public final Setting<Integer> antiParticleMaxCount = new Setting<>(2048);
+    public final Setting<Integer> antiChatMaxLength = new Setting<>(8192);
+    public final Setting<Float> antiSoundMaxVolume = new Setting<>(50.0f);
+
+    /**
      * If true, parkour is allowed to make jumps when standing on blocks at the maximum height, so player feet is y=256
      * <p>
      * Defaults to false because this fails on constantiam. Please let me know if this is ever disabled. Please.
@@ -480,6 +635,27 @@ public final class Settings {
      * Distance to avoid mobs.
      */
     public final Setting<Integer> mobAvoidanceRadius = new Setting<>(8);
+
+    /**
+     * Prefer areas near specified ores in cached world data (cost multiplier < 1 near ores).
+     * Disabled by default to avoid biasing generic goals.
+     */
+    public final Setting<Boolean> oreFavoring = new Setting<>(false);
+
+    /**
+     * Blocks treated as "ores" for favoring. Example: minecraft:diamond_ore, minecraft:deepslate_diamond_ore.
+     */
+    public final Setting<java.util.List<net.minecraft.world.level.block.Block>> preferredOres = new Setting<>(new java.util.ArrayList<>());
+
+    /**
+     * Multiplicative cost coefficient near ores (< 1.0 favors, =1 disables effect).
+     */
+    public final Setting<Double> oreFavoringCoefficient = new Setting<>(0.9);
+
+    /**
+     * Radius (in blocks) to favor around ore hits in cache.
+     */
+    public final Setting<Integer> oreFavoringRadius = new Setting<>(8);
 
     /**
      * When running a goto towards a container block (chest, ender chest, furnace, etc),

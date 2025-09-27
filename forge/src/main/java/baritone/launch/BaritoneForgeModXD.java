@@ -15,8 +15,14 @@
  * along with Baritone.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package baritone.launch;import net.minecraftforge.fml.common.Mod;
+package baritone.launch;
 
-@Mod("baritoe")
+import net.minecraftforge.fml.common.Mod;
+
+@Mod("baritone")
 public class BaritoneForgeModXD {
+    public BaritoneForgeModXD() {
+        System.out.println("[Baritone/Forge] Mod class constructed. If you see this, Forge loaded the mod.");
+        // Event bus hook skipped for maximum compatibility across Forge variants.
+    }
 }

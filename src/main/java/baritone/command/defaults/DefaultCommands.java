@@ -67,6 +67,13 @@ public final class DefaultCommands {
                 new WaypointsCommand(baritone),
                 new CommandAlias(baritone, "sethome", "Sets your home waypoint", "waypoints save home"),
                 new CommandAlias(baritone, "home", "Path to your home waypoint", "waypoints goto home"),
+                new CommandAlias(baritone, "showpath", "Toggle path rendering", "set toggle renderPath"),
+                new CommandAlias(baritone, "showblocks", "Toggle block selection rendering", "set toggle renderSelectionBoxes"),
+                new CommandAlias(baritone, Arrays.asList("autoeat", "eat"), "Toggle auto-eat", "set toggle autoeat"),
+                new AntiAntiCheatCommand(baritone),
+                new DefendSelfCommand(baritone),
+                new SelfDefendPlayersCommand(baritone),
+                new KillCommand(baritone),
                 new SelCommand(baritone),
                 new ElytraCommand(baritone)
         ));

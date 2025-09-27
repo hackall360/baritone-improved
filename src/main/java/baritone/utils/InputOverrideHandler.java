@@ -24,6 +24,8 @@ import baritone.api.utils.IInputOverrideHandler;
 import baritone.api.utils.input.Input;
 import baritone.behavior.Behavior;
 import net.minecraft.client.player.KeyboardInput;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.component.DataComponents;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -90,8 +92,22 @@ public final class InputOverrideHandler extends Behavior implements IInputOverri
         if (isInputForcedDown(Input.CLICK_LEFT)) {
             setInputForceState(Input.CLICK_RIGHT, false);
         }
-        blockBreakHelper.tick(isInputForcedDown(Input.CLICK_LEFT));
-        blockPlaceHelper.tick(isInputForcedDown(Input.CLICK_RIGHT));
+        // Suppress breaking/placing while eating (AutoEat)
+        boolean suppressForEating = false;
+        LocalPlayer p = ctx.player();
+        if (p != null && BaritoneAPI.getSettings().autoeat.value) {
+            boolean edibleInHand = !p.getMainHandItem().isEmpty() && p.getMainHandItem().getItem().components().has(DataComponents.FOOD);
+            int threshold = Math.max(0, Math.min(20, BaritoneAPI.getSettings().autoEatHungerThreshold.value));
+            boolean hungry = p.getFoodData().getFoodLevel() <= threshold;
+            // If holding food and hungry or already consuming, suppress left click and block-place helper
+            suppressForEating = edibleInHand && (hungry || p.isHandsBusy());
+        }
+
+        boolean left = isInputForcedDown(Input.CLICK_LEFT) && !suppressForEating;
+        boolean right = isInputForcedDown(Input.CLICK_RIGHT) && !suppressForEating;
+
+        blockBreakHelper.tick(left);
+        blockPlaceHelper.tick(right);
 
         if (inControl()) {
             if (ctx.player().input.getClass() != PlayerMovementInput.class) {

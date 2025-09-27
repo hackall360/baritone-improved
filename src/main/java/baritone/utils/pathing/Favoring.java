@@ -33,6 +33,17 @@ public final class Favoring {
         for (Avoidance avoid : Avoidance.create(ctx)) {
             avoid.applySpherical(favorings);
         }
+        if (baritone.Baritone.settings().oreFavoring.value) {
+            OreFavoring oreFav = new OreFavoring(
+                    ctx,
+                    baritone.Baritone.settings().preferredOres.value,
+                    baritone.Baritone.settings().oreFavoringCoefficient.value,
+                    baritone.Baritone.settings().oreFavoringRadius.value
+            );
+            if (!oreFav.isEmpty()) {
+                oreFav.apply(favorings);
+            }
+        }
         Helper.HELPER.logDebug("Favoring size: " + favorings.size());
     }
 

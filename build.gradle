@@ -75,6 +75,10 @@ allprojects {
             name = 'babbaj-repo'
             url = 'https://babbaj.github.io/maven/'
         }
+        maven {
+            name = 'jcuda'
+            url = 'https://jcuda.org/maven'
+        }
     }
 
     dependencies {

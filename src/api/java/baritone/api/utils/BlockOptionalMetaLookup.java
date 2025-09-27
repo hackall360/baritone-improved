@@ -45,6 +45,8 @@ public class BlockOptionalMetaLookup {
             blockStates.addAll(bom.getAllBlockStates());
             stacks.addAll(bom.stackHashes());
         }
+        // Expand simple variants (e.g., diamond_ore <-> deepslate_diamond_ore)
+        blocks.addAll(VariantBlocks.expandSimpleVariants(blocks));
         this.blockSet = ImmutableSet.copyOf(blocks);
         this.blockStateSet = ImmutableSet.copyOf(blockStates);
         this.stackHashes = ImmutableSet.copyOf(stacks);

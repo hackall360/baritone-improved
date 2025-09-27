@@ -52,6 +52,7 @@ public class ToolSet {
      * with this toolset, given the optimum tool is used.
      */
     private final Map<Block, Double> breakStrengthCache;
+    private final Map<Block, Integer> bestSlotCache;
 
     /**
      * My buddy leijurv owned me so we have this to not create a new lambda instance.
@@ -76,6 +77,7 @@ public class ToolSet {
 
     public ToolSet(LocalPlayer player) {
         breakStrengthCache = new HashMap<>();
+        bestSlotCache = new HashMap<>();
         this.player = player;
 
         if (Baritone.settings().considerPotionEffects.value) {
@@ -137,6 +139,10 @@ public class ToolSet {
     }
 
     public int getBestSlot(Block b, boolean preferSilkTouch, boolean pathingCalculation) {
+        if (pathingCalculation && !preferSilkTouch) {
+            Integer cached = bestSlotCache.get(b);
+            if (cached != null) return cached;
+        }
 
         /*
         If we actually want know what efficiency our held item has instead of the best one
@@ -177,6 +183,9 @@ public class ToolSet {
                     bestSilkTouch = silkTouch;
                 }
             }
+        }
+        if (pathingCalculation && !preferSilkTouch) {
+            bestSlotCache.put(b, best);
         }
         return best;
     }

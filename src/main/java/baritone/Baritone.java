@@ -32,6 +32,7 @@ import baritone.event.GameEventHandler;
 import baritone.process.*;
 import baritone.selection.SelectionManager;
 import baritone.utils.BlockStateInterface;
+import baritone.pathing.accel.AccelerationManager;
 import baritone.utils.GuiClick;
 import baritone.utils.InputOverrideHandler;
 import baritone.utils.PathingControlManager;
@@ -77,6 +78,7 @@ public class Baritone implements IBaritone {
     private final CustomGoalProcess customGoalProcess;
     private final BuilderProcess builderProcess;
     private final ExploreProcess exploreProcess;
+    private final CombatProcess combatProcess;
     private final FarmProcess farmProcess;
     private final InventoryPauserProcess inventoryPauserProcess;
     private final IElytraProcess elytraProcess;
@@ -93,6 +95,8 @@ public class Baritone implements IBaritone {
     Baritone(Minecraft mc) {
         this.mc = mc;
         this.gameEventHandler = new GameEventHandler(this);
+        // Initialize GPU accelerator backend at startup (auto-detect)
+        try { AccelerationManager.init(); } catch (Throwable ignored) {}
 
         this.directory = mc.gameDirectory.toPath().resolve("baritone");
         if (!Files.exists(this.directory)) {
@@ -108,8 +112,13 @@ public class Baritone implements IBaritone {
             this.lookBehavior         = this.registerBehavior(LookBehavior::new);
             this.pathingBehavior      = this.registerBehavior(PathingBehavior::new);
             this.inventoryBehavior    = this.registerBehavior(InventoryBehavior::new);
+            // Register AutoEat before InputOverrideHandler so its input overrides apply in the same tick
+            this.registerBehavior(AutoEatBehavior::new);
             this.inputOverrideHandler = this.registerBehavior(InputOverrideHandler::new);
             this.registerBehavior(WaypointBehavior::new);
+            // Lightweight D*-Lite style local repair when nearby blocks change
+            this.registerBehavior(PathRepairBehavior::new);
+            // Seed cracker removed; no auto-collection behavior
         }
 
         this.pathingControlManager = new PathingControlManager(this);
@@ -124,6 +133,7 @@ public class Baritone implements IBaritone {
             this.inventoryPauserProcess  = this.registerProcess(InventoryPauserProcess::new);
             this.elytraProcess           = this.registerProcess(ElytraProcess::create);
             this.registerProcess(BackfillProcess::new);
+            this.combatProcess           = this.registerProcess(CombatProcess::new);
         }
 
         this.worldProvider = new WorldProvider(this);
@@ -194,6 +204,11 @@ public class Baritone implements IBaritone {
     @Override
     public ExploreProcess getExploreProcess() {
         return this.exploreProcess;
+    }
+
+    @Override
+    public baritone.api.process.ICombatProcess getCombatProcess() {
+        return this.combatProcess;
     }
 
     @Override

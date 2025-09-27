@@ -129,7 +129,8 @@ public class ProguardTask extends BaritoneGradleTask {
 
         // Setup the template that will be used to derive the API and Standalone configs
         List<String> template = Files.readAllLines(getTemporaryFile(PROGUARD_CONFIG_DEST));
-        template.add(0, "-injars '" + this.artifactPath.toString() + "'");
+        // Exclude any nested jars we embed under META-INF/jarjar from ProGuard processing
+        template.add(0, "-injars '" + this.artifactPath.toString() + "'(!META-INF/jarjar/**)");
         template.add(1, "-outjars '" + this.getTemporaryFile(PROGUARD_EXPORT_PATH) + "'");
 
         template.add(2, "-libraryjars  <java.home>/jmods/java.base.jmod(!**.jar;!module-info.class)");

@@ -85,12 +85,20 @@ public class MixinNetworkManager {
             at = @At(
                     value = "INVOKE",
                     target = "net/minecraft/network/Connection.genericsFtw(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;)V"
-            )
+            ),
+            cancellable = true
     )
     private void preProcessPacket(ChannelHandlerContext context, Packet<?> packet, CallbackInfo ci) {
         if (this.receiving != PacketFlow.CLIENTBOUND) {
             return;
         }
+        try {
+            if (baritone.security.PacketGuards.shouldBlock(packet)) {
+                // silently drop suspicious packet
+                ci.cancel();
+                return;
+            }
+        } catch (Throwable ignored) {}
         for (IBaritone ibaritone : BaritoneAPI.getProvider().getAllBaritones()) {
             if (ibaritone.getPlayerContext().player() != null && ibaritone.getPlayerContext().player().connection.getConnection() == (Connection) (Object) this) {
                 ibaritone.getGameEventHandler().onReceivePacket(new PacketEvent((Connection) (Object) this, EventState.PRE, packet));

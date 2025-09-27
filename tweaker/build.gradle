@@ -65,6 +65,50 @@ dependencies {
     }
 }
 
+// Remove ND4J/DJL fallbacks; standardize on JCuda
+
+// JCuda backend: enable with -PuseJCuda=true (default true when selected), version configurable
+def useJCuda = project.findProperty('useJCuda')?.toString()?.toBoolean() ?: false
+def jcudaVersion = (project.findProperty('jcudaVersion')?.toString()) ?: '12.6.0'
+if (jcudaVersion) {
+    if (jcudaVersion.contains('_') || jcudaVersion.contains('-')) {
+        jcudaVersion = jcudaVersion.replace('_','.').replace('-','.')
+    }
+}
+if (useJCuda) {
+    dependencies {
+        runtimeOnly("org.jcuda:jcuda:${jcudaVersion}") { transitive = false }
+        // Windows native by default; add linux classifier if you plan to distribute for linux too
+        runtimeOnly("org.jcuda:jcuda-natives:${jcudaVersion}:windows-x86_64")
+        // BLAS for pathing acceleration
+        runtimeOnly("org.jcuda:jcublas:${jcudaVersion}") { transitive = false }
+        runtimeOnly("org.jcuda:jcublas-natives:${jcudaVersion}:windows-x86_64")
+        // cuSPARSE for graph math
+        runtimeOnly("org.jcuda:jcusparse:${jcudaVersion}") { transitive = false }
+        runtimeOnly("org.jcuda:jcusparse-natives:${jcudaVersion}:windows-x86_64")
+        // cuSOLVER for potential linear solves
+        runtimeOnly("org.jcuda:jcusolver:${jcudaVersion}") { transitive = false }
+        runtimeOnly("org.jcuda:jcusolver-natives:${jcudaVersion}:windows-x86_64")
+        // runtimeOnly("org.jcuda:jcuda-natives:${jcudaVersion}:linux-x86_64")
+        // JNA for NVRTC JNA fallback (system CUDA Toolkit)
+        runtimeOnly("net.java.dev.jna:jna:5.14.0")
+    }
+}
+
+// Optional NVRTC (only if explicitly requested and available for the chosen version)
+def useNvrtc = project.findProperty('useNvrtc')?.toString()?.toBoolean() ?: false
+if (useJCuda && useNvrtc) {
+    try {
+        dependencies {
+            runtimeOnly("org.jcuda:jnvrtc:${jcudaVersion}") { transitive = false }
+            runtimeOnly("org.jcuda:jnvrtc-natives:${jcudaVersion}:windows-x86_64")
+        }
+        println "[Accel] Attempting to include JCuda NVRTC ${jcudaVersion}"
+    } catch (Throwable ignored) {
+        println "[Accel] NVRTC artifacts not found for version ${jcudaVersion}; skipping"
+    }
+}
+
 shadowJar {
     configurations = [project.configurations.shadowCommon]
     archiveClassifier.set "dev-shadow"
@@ -101,6 +145,40 @@ task proguard(type: ProguardTask) {
 task createDist(type: CreateDistTask, dependsOn: proguard)
 
 build.finalizedBy(createDist)
+
+// Create an "accelerated" distribution that bundles accelerator libs into dist/libs for convenience
+tasks.register("createDistAccel") {
+    dependsOn tasks.named("createDist")
+    doLast {
+        def libsDir = rootProject.file("dist/libs")
+        if (libsDir.exists()) {
+            libsDir.listFiles()?.each { it.delete() }
+        }
+        libsDir.mkdirs()
+        // Copy only ML/accel related jars
+        def rc = configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts
+        rc.each { a ->
+            def gid = a.moduleVersion.id.group
+            if (gid.startsWith("org.jcuda")) {
+                copy { from a.file; into libsDir }
+            }
+            if (gid.startsWith("net.java.dev.jna")) {
+                copy { from a.file; into libsDir }
+            }
+        }
+        def note = rootProject.file("dist/ACCELERATION.txt")
+        note.text = (
+                "Accelerator libs were copied to dist/libs.\n" +
+                "To enable GPU acceleration:\n" +
+                "- Ensure matching CUDA runtime is installed.\n" +
+                "- Ensure CUDA bin folder is on PATH so NVRTC DLLs (e.g. nvrtc64_130_0.dll) are found.\n" +
+                "- Launch with the libs on the mods/classpath (or keep beside the jar if loader supports).\n" +
+                "- Baritone logs will include: 'Path Accelerator backend: ...'\n" +
+                (useJCuda ? "Included JCuda ${jcudaVersion} (Windows natives).\n" : "")
+        )
+        println "Created accelerated dist with libs in dist/libs"
+    }
+}
 
 publishing {
     publications {

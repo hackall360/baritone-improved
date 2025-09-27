@@ -95,6 +95,12 @@ public interface IBaritone {
     IElytraProcess getElytraProcess();
 
     /**
+     * @return The combat process controller
+     * @see ICombatProcess
+     */
+    ICombatProcess getCombatProcess();
+
+    /**
      * @return The {@link IWorldProvider} instance
      * @see IWorldProvider
      */

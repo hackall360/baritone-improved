@@ -27,9 +27,12 @@ import baritone.pathing.calc.openset.BinaryHeapOpenSet;
 import baritone.pathing.movement.CalculationContext;
 import baritone.pathing.movement.Moves;
 import baritone.utils.pathing.BetterWorldBorder;
+import baritone.pathing.accel.AccelerationManager;
 import baritone.utils.pathing.Favoring;
 import baritone.utils.pathing.MutableMoveResult;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -46,6 +49,11 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
         super(realStart, startX, startY, startZ, goal, context);
         this.favoring = favoring;
         this.calcContext = context;
+        // GPU detection (lazy) for logging/telemetry; actual GPU compute is pluggable and disabled by default
+        if (baritone.Baritone.settings().enableGpuAcceleration.value) {
+            AccelerationManager.init();
+            logDebug("Path Accelerator backend: " + AccelerationManager.getBackendDetails());
+        }
     }
 
     @Override
@@ -80,6 +88,8 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
         int pathingMaxChunkBorderFetch = Baritone.settings().pathingMaxChunkBorderFetch.value; // grab all settings beforehand so that changing settings during pathing doesn't cause a crash or unpredictable behavior
         double minimumImprovement = Baritone.settings().minimumImprovementRepropagation.value ? MIN_IMPROVEMENT : 0;
         Moves[] allMoves = Moves.values();
+        // Small tie-breaker to reduce search thrash on equal-cost fronts
+        final double heuristicTieBreaker = 1e-4; // conservative, preserves optimality
         while (!openSet.isEmpty() && numEmptyChunk < pathingMaxChunkBorderFetch && !cancelRequested) {
             if ((numNodes & (timeCheckInterval - 1)) == 0) { // only call this once every 64 nodes (about half a millisecond)
                 long now = System.currentTimeMillis(); // since nanoTime is slow on windows (takes many microseconds)
@@ -99,6 +109,13 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
                 logDebug("Took " + (System.currentTimeMillis() - startTime) + "ms, " + numMovementsConsidered + " movements considered");
                 return Optional.of(new Path(realStart, startNode, currentNode, numNodes, goal, calcContext));
             }
+            // Stage neighbors for batch combined-cost computation (GPU/CPU vectorizable)
+            // These buffers are reused across the move loop for this current node
+            final List<PathNode> stagedNeighbors = new ArrayList<>(allMoves.length);
+            final double[] estBuf = new double[allMoves.length];
+            final double[] tentBuf = new double[allMoves.length];
+            int staged = 0;
+
             for (Moves moves : allMoves) {
                 int newX = currentNode.x + moves.xOffset;
                 int newZ = currentNode.z + moves.zOffset;
@@ -120,6 +137,13 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
                 numMovementsConsidered++;
                 double actionCost = res.cost;
                 if (actionCost >= ActionCosts.COST_INF) {
+                    continue;
+                }
+                // Cheap backtrack pruning: skip immediately returning to the previous node
+                if (currentNode.previous != null &&
+                        currentNode.previous.x == res.x &&
+                        currentNode.previous.y == res.y &&
+                        currentNode.previous.z == res.z) {
                     continue;
                 }
                 if (actionCost <= 0 || Double.isNaN(actionCost)) {
@@ -167,17 +191,42 @@ public final class AStarPathFinder extends AbstractNodeCostSearch {
                 if (neighbor.cost - tentativeCost > minimumImprovement) {
                     neighbor.previous = currentNode;
                     neighbor.cost = tentativeCost;
-                    neighbor.combinedCost = tentativeCost + neighbor.estimatedCostToGoal;
+                    // Stage for batched combinedCost computation
+                    stagedNeighbors.add(neighbor);
+                    estBuf[staged] = neighbor.estimatedCostToGoal;
+                    tentBuf[staged] = tentativeCost;
+                    staged++;
+                }
+            }
+
+            // Finalize staged neighbors: compute combinedCost in a single batch, then update structures
+            if (staged > 0) {
+                double[] out = new double[staged];
+                // Always go through PathAccelerator (it will CPU fallback if GPU is unavailable)
+                double[] eIn = estBuf;
+                double[] tIn = tentBuf;
+                if (staged != estBuf.length) {
+                    // Trim to exact length to avoid extra work in accelerator backends
+                    eIn = new double[staged];
+                    tIn = new double[staged];
+                    System.arraycopy(estBuf, 0, eIn, 0, staged);
+                    System.arraycopy(tentBuf, 0, tIn, 0, staged);
+                }
+                baritone.pathing.accel.PathAccelerator.computeCombinedCosts(eIn, tIn, heuristicTieBreaker, out);
+
+                for (int i = 0; i < staged; i++) {
+                    PathNode neighbor = stagedNeighbors.get(i);
+                    neighbor.combinedCost = out[i];
                     if (neighbor.isOpen()) {
                         openSet.update(neighbor);
                     } else {
                         openSet.insert(neighbor);//dont double count, dont insert into open set if it's already there
                     }
-                    for (int i = 0; i < COEFFICIENTS.length; i++) {
-                        double heuristic = neighbor.estimatedCostToGoal + neighbor.cost / COEFFICIENTS[i];
-                        if (bestHeuristicSoFar[i] - heuristic > minimumImprovement) {
-                            bestHeuristicSoFar[i] = heuristic;
-                            bestSoFar[i] = neighbor;
+                    for (int c = 0; c < COEFFICIENTS.length; c++) {
+                        double heuristic = neighbor.estimatedCostToGoal + neighbor.cost / COEFFICIENTS[c];
+                        if (bestHeuristicSoFar[c] - heuristic > minimumImprovement) {
+                            bestHeuristicSoFar[c] = heuristic;
+                            bestSoFar[c] = neighbor;
                             if (failing && getDistFromStartSq(neighbor) > MIN_DIST_PATH * MIN_DIST_PATH) {
                                 failing = false;
                             }

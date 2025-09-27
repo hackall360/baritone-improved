@@ -50,6 +50,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
 
     private PathExecutor current;
     private PathExecutor next;
+    private final java.util.ArrayDeque<PathExecutor> nextQueue = new java.util.ArrayDeque<>();
 
     private Goal goal;
     private CalculationContext context;
@@ -159,6 +160,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                     logDebug("All done. At " + goal);
                     queuePathEvent(PathEvent.AT_GOAL);
                     next = null;
+                    nextQueue.clear();
                     if (Baritone.settings().disconnectOnArrival.value) {
                         if (ctx.world() instanceof ClientLevel clientLevel) {
                             clientLevel.disconnect(Component.literal("[Baritone] Arrived at goal!"));
@@ -181,7 +183,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                     logDebug("Continuing on to planned next path");
                     queuePathEvent(PathEvent.CONTINUING_ONTO_PLANNED_NEXT);
                     current = next;
-                    next = null;
+                    next = nextQueue.pollFirst();
                     current.onTick(); // don't waste a tick doing nothing, get started right away
                     return;
                 }
@@ -203,7 +205,7 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                 logDebug("Splicing into planned next path early...");
                 queuePathEvent(PathEvent.SPLICING_ONTO_NEXT_EARLY);
                 current = next;
-                next = null;
+                next = nextQueue.pollFirst();
                 current.onTick();
                 return;
             }
@@ -211,14 +213,14 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                 current = current.trySplice(next);
             }
             if (next != null && current.getPath().getDest().equals(next.getPath().getDest())) {
-                next = null;
+                next = nextQueue.pollFirst();
             }
             synchronized (pathCalcLock) {
                 if (inProgress != null) {
                     // if we aren't calculating right now
                     return;
                 }
-                if (next != null) {
+                if (next != null || !nextQueue.isEmpty()) {
                     // and we have no plan for what to do next
                     return;
                 }
@@ -300,6 +302,10 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
     @Override
     public PathExecutor getCurrent() {
         return current;
+    }
+
+    public IPath getCurrentPath() {
+        return current == null ? null : current.getPath();
     }
 
     @Override
@@ -526,21 +532,27 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                         }
                     }
                 } else {
-                    if (next == null) {
-                        if (executor.isPresent()) {
-                            if (executor.get().getPath().getSrc().equals(current.getPath().getDest())) {
+                    if (executor.isPresent()) {
+                        // Determine expected chain start
+                        BlockPos chainStart = current.getPath().getDest();
+                        if (next != null) {
+                            chainStart = next.getPath().getDest();
+                            if (!nextQueue.isEmpty()) {
+                                chainStart = nextQueue.peekLast().getPath().getDest();
+                            }
+                        }
+                        if (executor.get().getPath().getSrc().equals(chainStart)) {
+                            if (next == null) {
                                 queuePathEvent(PathEvent.NEXT_SEGMENT_CALC_FINISHED);
                                 next = executor.get();
                             } else {
-                                logDebug("Warning: discarding orphan next segment with incorrect start");
+                                nextQueue.addLast(executor.get());
                             }
                         } else {
-                            queuePathEvent(PathEvent.NEXT_CALC_FAILED);
+                            logDebug("Warning: discarding orphan planned segment with incorrect start");
                         }
                     } else {
-                        //throw new IllegalStateException("I have no idea what to do with this path");
-                        // no point in throwing an exception here, and it gets it stuck with inProgress being not null
-                        logDirect("Warning: PathingBehaivor illegal state! Discarding invalid path!");
+                        queuePathEvent(PathEvent.NEXT_CALC_FAILED);
                     }
                 }
                 if (talkAboutIt && current != null && current.getPath() != null) {
@@ -554,7 +566,38 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
                     inProgress = null;
                 }
             }
+            // After finishing one segment calc, opportunistically chain plan-ahead segments
+            maybeChainPlanAhead();
         });
+    }
+
+    private void maybeChainPlanAhead() {
+        try {
+            synchronized (pathPlanLock) {
+                if (current == null || goal == null) return;
+                int queued = (next == null ? 0 : 1) + nextQueue.size();
+                int target = Math.max(1, Baritone.settings().planAheadSegments.value);
+                if (queued >= target) return;
+                // Don't plan if goal already reached by the last planned dest
+                BlockPos startFrom;
+                if (next != null) {
+                    startFrom = next.getPath().getDest();
+                    if (!nextQueue.isEmpty()) {
+                        startFrom = nextQueue.peekLast().getPath().getDest();
+                    }
+                } else {
+                    startFrom = current.getPath().getDest();
+                }
+                if (goal.isInGoal(startFrom)) return;
+                synchronized (pathCalcLock) {
+                    if (inProgress != null) return;
+                    queuePathEvent(PathEvent.NEXT_SEGMENT_CALC_STARTED);
+                    findPathInNewThread(startFrom, false, context);
+                }
+            }
+        } catch (Throwable t) {
+            logDebug("Plan-ahead chaining failed: " + t.getMessage());
+        }
     }
 
     private AbstractNodeCostSearch createPathfinder(BlockPos start, Goal goal, IPath previous, CalculationContext context) {
@@ -571,6 +614,10 @@ public final class PathingBehavior extends Behavior implements IPathingBehavior,
         var sub = feet.subtract(realStart);
         if (feet.getY() == realStart.getY() && Math.abs(sub.getX()) <= 1 && Math.abs(sub.getZ()) <= 1) {
             realStart = feet;
+        }
+        if (Baritone.settings().enableHierarchicalPathing.value) {
+            // Use hierarchical planner for long-range routes; it safely falls back to micro A* if needed
+            return new baritone.pathing.calc.HierarchicalPlanner(realStart, start.getX(), start.getY(), start.getZ(), transformed, favoring, context);
         }
         return new AStarPathFinder(realStart, start.getX(), start.getY(), start.getZ(), transformed, favoring, context);
 
