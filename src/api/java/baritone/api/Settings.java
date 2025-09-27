@@ -98,9 +98,19 @@ public final class Settings {
     public final Setting<Boolean> autoEat = new Setting<>(false);
 
     /**
+     * Backwards-compatibility alias for legacy configs that referenced {@code autoeat}.
+     */
+    public final Setting<Boolean> autoeat = autoEat;
+
+    /**
      * The hunger level that will trigger automatic eating when {@link #autoEat} is enabled.
      */
     public final Setting<Integer> autoEatThreshold = new Setting<>(12);
+
+    /**
+     * Backwards-compatibility alias for legacy configs that referenced {@code autoEatHungerThreshold}.
+     */
+    public final Setting<Integer> autoEatHungerThreshold = autoEatThreshold;
 
     /**
      * Wait this many ticks between InventoryBehavior moving inventory items
@@ -170,6 +180,11 @@ public final class Settings {
     public final Setting<Boolean> seedBasedPrediction = new Setting<>(false);
 
     /**
+     * Backwards-compatibility alias for configs that referenced the legacy predictive worldgen flag.
+     */
+    public final Setting<Boolean> usePredictiveWorldgen = seedBasedPrediction;
+
+    /**
      * The last configured world seed for predictive planning. Requires {@link #seedPredictionSeedConfigured} to be true.
      */
     public final Setting<Long> seedPredictionSeed = new Setting<>(0L);
@@ -178,6 +193,22 @@ public final class Settings {
      * Tracks whether a predictive planning seed has been explicitly provided by the user.
      */
     public final Setting<Boolean> seedPredictionSeedConfigured = new Setting<>(false);
+
+    /**
+     * Allows overriding the world seed used for all predictive systems, such as macro planning or seed cracking.
+     * A value of {@code 0} disables the override and defers to the server supplied seed instead.
+     */
+    public final Setting<Long> overrideWorldSeed = new Setting<>(0L);
+
+    /**
+     * Enables collection of world observations for the seed cracking helper.
+     */
+    public final Setting<Boolean> enableSeedCracker = new Setting<>(false);
+
+    /**
+     * When enabled, seed observations encountered during normal gameplay are captured automatically.
+     */
+    public final Setting<Boolean> autoCollectSeedObservations = new Setting<>(true);
 
     /**
      * Allow Baritone to assume it can walk on still water just like any other block.
@@ -641,6 +672,61 @@ public final class Settings {
     public final Setting<Long> planAheadFailureTimeoutMS = new Setting<>(5000L);
 
     /**
+     * Enables the experimental hierarchical path planning pipeline (HPA*).
+     */
+    public final Setting<Boolean> enableHierarchicalPathing = new Setting<>(false);
+
+    /**
+     * Enables opportunistic repair of cached HPA* regions around the player as the world changes.
+     */
+    public final Setting<Boolean> hpaDynamicRepairEnabled = new Setting<>(true);
+
+    /**
+     * Controls the radius (in blocks) that HPA* dynamic repair will scan when rebuilding a region.
+     */
+    public final Setting<Integer> hpaRepairRadius = new Setting<>(8);
+
+    /**
+     * Minimum planar distance a target needs to be for HPA* planning to activate.
+     */
+    public final Setting<Double> hpaMinDistance = new Setting<>(64.0D);
+
+    /**
+     * Width of the X/Z cluster grid used for HPA* abstractions.
+     */
+    public final Setting<Integer> hpaClusterSizeXZ = new Setting<>(32);
+
+    /**
+     * Vertical band height used when clustering blocks for HPA*.
+     */
+    public final Setting<Integer> hpaBandHeight = new Setting<>(16);
+
+    /**
+     * Enables the ALT (A*, landmarks and triangle inequality) heuristic on top of HPA*.
+     */
+    public final Setting<Boolean> hpaUseALT = new Setting<>(false);
+
+    /**
+     * Number of landmarks to generate when ALT is enabled.
+     */
+    public final Setting<Integer> hpaALTLandmarks = new Setting<>(16);
+
+    /**
+     * Weight factor applied to the HPA* ARA* bounded suboptimality search.
+     */
+    public final Setting<Double> hpaARAWeight = new Setting<>(1.5D);
+
+    /**
+     * Stride for sampling waypoint positions when building HPA* abstractions.
+     */
+    public final Setting<Integer> hpaWaypointStride = new Setting<>(64);
+
+    /**
+     * When enabled, validation of cached hierarchical paths is deferred to reduce per-tick cost.
+     */
+    public final Setting<Boolean> hpaLazyValidation = new Setting<>(true);
+
+    /**
      * For debugging, consider nodes much much slower
      */
     public final Setting<Boolean> slowPath = new Setting<>(false);
@@ -703,6 +789,146 @@ public final class Settings {
      * Print all the debug messages to chat
      */
     public final Setting<Boolean> chatDebug = new Setting<>(false);
+
+    /**
+     * Toggle mitigation features that attempt to guard against anti-cheat heuristics.
+     */
+    public final Setting<Boolean> antiAntiCheat = new Setting<>(false);
+
+    /**
+     * When enabled, packets that attempt to force resource pack downloads are blocked.
+     */
+    public final Setting<Boolean> antiPacketBlockResourcePack = new Setting<>(false);
+
+    /**
+     * When enabled, excessive particle packets are clamped to {@link #antiParticleMaxCount}.
+     */
+    public final Setting<Boolean> antiPacketClampParticles = new Setting<>(false);
+
+    /**
+     * Maximum particle count allowed when {@link #antiPacketClampParticles} is enabled.
+     */
+    public final Setting<Integer> antiParticleMaxCount = new Setting<>(512);
+
+    /**
+     * Clamp chat packets to a configured maximum length when enabled.
+     */
+    public final Setting<Boolean> antiPacketClampChat = new Setting<>(false);
+
+    /**
+     * Maximum length of chat messages when {@link #antiPacketClampChat} is enabled.
+     */
+    public final Setting<Integer> antiChatMaxLength = new Setting<>(512);
+
+    /**
+     * Prevents servers from forcing client screens to open when enabled.
+     */
+    public final Setting<Boolean> antiPacketBlockOpenScreens = new Setting<>(false);
+
+    /**
+     * Clamp incoming sound packets when enabled.
+     */
+    public final Setting<Boolean> antiPacketClampSound = new Setting<>(false);
+
+    /**
+     * Maximum sound volume accepted when {@link #antiPacketClampSound} is enabled.
+     */
+    public final Setting<Float> antiSoundMaxVolume = new Setting<>(1.0F);
+
+    /**
+     * Allows the combat system to automatically defend against nearby hostile mobs.
+     */
+    public final Setting<Boolean> defendSelf = new Setting<>(false);
+
+    /**
+     * Extends automatic defense to aggressive players while pathing.
+     */
+    public final Setting<Boolean> defendSelfPlayers = new Setting<>(false);
+
+    /**
+     * Enables use of the GPU acceleration backend where available.
+     */
+    public final Setting<Boolean> enableGpuAcceleration = new Setting<>(false);
+
+    /**
+     * Enables proactive engagement of ghasts encountered in combat range.
+     */
+    public final Setting<Boolean> combatEngageGhasts = new Setting<>(false);
+
+    /**
+     * Enables proactive engagement of creepers encountered in combat range.
+     */
+    public final Setting<Boolean> combatEngageCreepers = new Setting<>(true);
+
+    /**
+     * Distance at which the combat system will attempt to retreat from threats.
+     */
+    public final Setting<Integer> combatRunAwayDistance = new Setting<>(8);
+
+    /**
+     * Distance from a creeper that is considered dangerous.
+     */
+    public final Setting<Double> creeperDangerDistance = new Setting<>(6.0D);
+
+    /**
+     * Interval between strafing adjustments in milliseconds.
+     */
+    public final Setting<Integer> combatStrafeIntervalMs = new Setting<>(500);
+
+    /**
+     * Allow the combat system to perform critical hits by jumping.
+     */
+    public final Setting<Boolean> combatAllowCrits = new Setting<>(true);
+
+    /**
+     * Cooldown between attempted critical hit jumps in milliseconds.
+     */
+    public final Setting<Integer> combatCritJumpCooldownMs = new Setting<>(800);
+
+    /**
+     * Minimum delay between melee swings in milliseconds.
+     */
+    public final Setting<Integer> combatAttackCooldownMsMin = new Setting<>(400);
+
+    /**
+     * Minimum safe distance to maintain when engaging creepers.
+     */
+    public final Setting<Double> creeperEngageMinDistance = new Setting<>(3.0D);
+
+    /**
+     * Maximum distance to maintain when engaging creepers.
+     */
+    public final Setting<Double> creeperEngageMaxDistance = new Setting<>(6.0D);
+
+    /**
+     * Cooldown before re-engaging creepers after backing off (milliseconds).
+     */
+    public final Setting<Integer> creeperBackoffMs = new Setting<>(2000);
+
+    /**
+     * Default maximum range for acquiring combat targets.
+     */
+    public final Setting<Integer> combatTargetRange = new Setting<>(16);
+
+    /**
+     * Health threshold that triggers a defensive retreat response.
+     */
+    public final Setting<Double> combatLowHpFlee = new Setting<>(6.0D);
+
+    /**
+     * Composite danger score above which the combat system will flee immediately.
+     */
+    public final Setting<Double> combatDangerFleeThreshold = new Setting<>(2.5D);
+
+    /**
+     * Composite danger score above which the combat system will pause to eat.
+     */
+    public final Setting<Double> combatDangerEatThreshold = new Setting<>(1.5D);
+
+    /**
+     * Health threshold that triggers eating even while in combat.
+     */
+    public final Setting<Double> combatEatHpThreshold = new Setting<>(10.0D);
 
     /**
      * Allow chat based control of Baritone. Most likely should be disabled when Baritone is imported for use in
@@ -1690,8 +1916,12 @@ public final class Settings {
                     setting.name = name;
                     setting.javaOnly = field.isAnnotationPresent(JavaOnly.class);
                     name = name.toLowerCase();
-                    if (tmpByName.containsKey(name)) {
-                        throw new IllegalStateException("Duplicate setting name");
+                    Setting<?> existing = tmpByName.get(name);
+                    if (existing != null) {
+                        if (existing != setting) {
+                            throw new IllegalStateException("Duplicate setting name");
+                        }
+                        continue;
                     }
                     tmpByName.put(name, setting);
                     tmpAll.add(setting);
