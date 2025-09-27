@@ -37,6 +37,7 @@ import baritone.utils.GuiClick;
 import baritone.utils.InputOverrideHandler;
 import baritone.utils.PathingControlManager;
 import baritone.utils.player.BaritonePlayerContext;
+import baritone.utils.player.ItemUseHelper;
 import baritone.pathing.seed.SeedPredictionService;
 import net.minecraft.client.Minecraft;
 
@@ -73,6 +74,7 @@ public class Baritone implements IBaritone {
     private final HumanizationBehavior humanizationBehavior;
     private final InventoryBehavior inventoryBehavior;
     private final InputOverrideHandler inputOverrideHandler;
+    private final ItemUseHelper itemUseHelper;
 
     private final FollowProcess followProcess;
     private final MineProcess mineProcess;
@@ -82,6 +84,7 @@ public class Baritone implements IBaritone {
     private final ExploreProcess exploreProcess;
     private final FarmProcess farmProcess;
     private final InventoryPauserProcess inventoryPauserProcess;
+    private final AutoEatProcess autoEatProcess;
     private final IElytraProcess elytraProcess;
 
     private final PathingControlManager pathingControlManager;
@@ -108,6 +111,7 @@ public class Baritone implements IBaritone {
 
         // Define this before behaviors try and get it, or else it will be null and the builds will fail!
         this.playerContext = new BaritonePlayerContext(this, mc);
+        this.itemUseHelper = new ItemUseHelper(this.playerContext);
 
         {
             this.lookBehavior         = this.registerBehavior(LookBehavior::new);
@@ -127,6 +131,7 @@ public class Baritone implements IBaritone {
             this.builderProcess          = this.registerProcess(BuilderProcess::new);
             this.exploreProcess          = this.registerProcess(ExploreProcess::new);
             this.farmProcess             = this.registerProcess(FarmProcess::new);
+            this.autoEatProcess          = this.registerProcess(AutoEatProcess::new);
             this.inventoryPauserProcess  = this.registerProcess(InventoryPauserProcess::new);
             this.elytraProcess           = this.registerProcess(ElytraProcess::create);
             this.registerProcess(BackfillProcess::new);
@@ -195,6 +200,11 @@ public class Baritone implements IBaritone {
     }
 
     @Override
+    public ItemUseHelper getItemUseHelper() {
+        return this.itemUseHelper;
+    }
+
+    @Override
     public HumanizationBehavior getHumanizationBehavior() {
         return this.humanizationBehavior;
     }
@@ -221,6 +231,11 @@ public class Baritone implements IBaritone {
 
     public InventoryPauserProcess getInventoryPauserProcess() {
         return this.inventoryPauserProcess;
+    }
+
+    @Override
+    public AutoEatProcess getAutoEatProcess() {
+        return this.autoEatProcess;
     }
 
     @Override
