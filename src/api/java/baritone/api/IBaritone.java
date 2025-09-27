@@ -17,6 +17,7 @@
 
 package baritone.api;
 
+import baritone.api.behavior.IHumanizationBehavior;
 import baritone.api.behavior.ILookBehavior;
 import baritone.api.behavior.IPathingBehavior;
 import baritone.api.cache.IWorldProvider;
@@ -45,6 +46,12 @@ public interface IBaritone {
      * @see ILookBehavior
      */
     ILookBehavior getLookBehavior();
+
+    /**
+     * @return The {@link IHumanizationBehavior} instance
+     * @see IHumanizationBehavior
+     */
+    IHumanizationBehavior getHumanizationBehavior();
 
     /**
      * @return The {@link IFollowProcess} instance
