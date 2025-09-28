@@ -162,6 +162,10 @@ public class SetCommand extends Command {
                 }
                 //noinspection unchecked
                 Settings.Setting<Boolean> asBoolSetting = (Settings.Setting<Boolean>) setting;
+                if (!asBoolSetting.value && setting == Baritone.settings().ignoreServerOreData
+                        && !baritone.getSeedPathing().hasSeed()) {
+                    throw new CommandInvalidStateException("Cannot enable ignoreServerOreData without a configured seed");
+                }
                 asBoolSetting.value ^= true;
                 logDirect(String.format(
                         "Toggled setting %s to %s",

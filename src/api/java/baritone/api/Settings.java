@@ -206,6 +206,12 @@ public final class Settings {
     public final Setting<SeedOreMode> seedPredictionOreMode = new Setting<>(SeedOreMode.TERRAIN_ONLY);
 
     /**
+     * Ignore ore blocks provided by the server when predictive data is available and instead rely exclusively on
+     * locally generated ore predictions derived from the configured seed.
+     */
+    public final Setting<Boolean> ignoreServerOreData = new Setting<>(false);
+
+    /**
      * Allows overriding the world seed used for all predictive systems, such as macro planning or seed cracking.
      * A value of {@code 0} disables the override and defers to the server supplied seed instead.
      */
