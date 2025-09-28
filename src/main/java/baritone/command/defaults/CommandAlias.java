@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 
 import java.util.Collections;
@@ -31,13 +32,21 @@ public class CommandAlias extends Command {
     public final String target;
 
     public CommandAlias(IBaritone baritone, List<String> names, String shortDesc, String target) {
-        super(baritone, names.toArray(new String[0]));
+        this(baritone, CommandCategory.GENERAL, names, shortDesc, target);
+    }
+
+    public CommandAlias(IBaritone baritone, CommandCategory category, List<String> names, String shortDesc, String target) {
+        super(baritone, category, names.toArray(new String[0]));
         this.shortDesc = shortDesc;
         this.target = target;
     }
 
     public CommandAlias(IBaritone baritone, String name, String shortDesc, String target) {
-        super(baritone, name);
+        this(baritone, CommandCategory.GENERAL, name, shortDesc, target);
+    }
+
+    public CommandAlias(IBaritone baritone, CommandCategory category, String name, String shortDesc, String target) {
+        super(baritone, category, name);
         this.shortDesc = shortDesc;
         this.target = target;
     }

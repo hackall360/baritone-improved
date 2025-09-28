@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.api.BaritoneAPI;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.process.ICustomGoalProcess;
@@ -31,7 +32,7 @@ import java.util.stream.Stream;
 public class PathCommand extends Command {
 
     public PathCommand(IBaritone baritone) {
-        super(baritone, "path");
+        super(baritone, CommandCategory.NAVIGATION, "path");
     }
 
     @Override

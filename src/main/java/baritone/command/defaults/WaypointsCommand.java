@@ -23,6 +23,7 @@ import baritone.api.cache.IWaypoint;
 import baritone.api.cache.IWorldData;
 import baritone.api.cache.Waypoint;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.ForWaypoints;
 import baritone.api.command.datatypes.RelativeBlockPos;
@@ -53,7 +54,7 @@ public class WaypointsCommand extends Command {
     private Map<IWorldData, List<IWaypoint>> deletedWaypoints = new HashMap<>();
 
     public WaypointsCommand(IBaritone baritone) {
-        super(baritone, "waypoints", "waypoint", "wp");
+        super(baritone, CommandCategory.WAYPOINTS, "waypoints", "waypoint", "wp");
     }
 
     @Override

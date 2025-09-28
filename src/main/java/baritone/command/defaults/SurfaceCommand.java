@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.pathing.goals.Goal;
@@ -32,7 +33,7 @@ import net.minecraft.world.level.block.AirBlock;
 public class SurfaceCommand extends Command {
 
     protected SurfaceCommand(IBaritone baritone) {
-        super(baritone, "surface", "top");
+        super(baritone, CommandCategory.NAVIGATION, "surface", "top");
     }
 
     @Override

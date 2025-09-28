@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.command.exception.CommandInvalidStateException;
@@ -33,7 +34,7 @@ import java.util.stream.Stream;
 public class InvertCommand extends Command {
 
     public InvertCommand(IBaritone baritone) {
-        super(baritone, "invert");
+        super(baritone, CommandCategory.NAVIGATION, "invert");
     }
 
     @Override

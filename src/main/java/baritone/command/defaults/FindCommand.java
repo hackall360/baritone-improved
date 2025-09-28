@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.BlockById;
 import baritone.api.command.exception.CommandException;
@@ -43,7 +44,7 @@ import static baritone.api.command.IBaritoneChatControl.FORCE_COMMAND_PREFIX;
 public class FindCommand extends Command {
 
     public FindCommand(IBaritone baritone) {
-        super(baritone, "find");
+        super(baritone, CommandCategory.NAVIGATION, "find");
     }
 
     @Override

@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.RelativeGoalXZ;
 import baritone.api.command.exception.CommandException;
@@ -31,7 +32,7 @@ import java.util.stream.Stream;
 public class ExploreCommand extends Command {
 
     public ExploreCommand(IBaritone baritone) {
-        super(baritone, "explore");
+        super(baritone, CommandCategory.TASKS, "explore");
     }
 
     @Override

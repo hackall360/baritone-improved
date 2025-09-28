@@ -64,4 +64,18 @@ public interface ICommand extends Helper {
     default boolean hiddenFromHelp() {
         return false;
     }
+
+    /**
+     * @return the category this command should be displayed under.
+     */
+    default CommandCategory getCategory() {
+        return CommandCategory.GENERAL;
+    }
+
+    /**
+     * @return the broader domain associated with this command.
+     */
+    default CommandDomain getDomain() {
+        return getCategory().domain();
+    }
 }

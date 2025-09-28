@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.Baritone;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.ForAxis;
 import baritone.api.command.datatypes.ForBlockOptionalMeta;
@@ -64,7 +65,7 @@ public class SelCommand extends Command {
     private Vec3i clipboardOffset = null;
 
     public SelCommand(IBaritone baritone) {
-        super(baritone, "sel", "selection", "s");
+        super(baritone, CommandCategory.BUILDING, "sel", "selection", "s");
         baritone.getGameEventHandler().registerEventListener(new AbstractGameEventListener() {
             @Override
             public void onRenderPass(RenderEvent event) {
