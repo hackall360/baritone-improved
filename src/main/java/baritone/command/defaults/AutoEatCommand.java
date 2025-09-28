@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.Baritone;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 
@@ -31,7 +32,7 @@ import java.util.stream.Stream;
 public class AutoEatCommand extends Command {
 
     public AutoEatCommand(IBaritone baritone) {
-        super(baritone, "autoeat");
+        super(baritone, CommandCategory.AUTOMATION_SETTINGS, "autoeat");
     }
 
     @Override

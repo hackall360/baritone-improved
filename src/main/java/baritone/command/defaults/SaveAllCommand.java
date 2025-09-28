@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 
@@ -29,7 +30,7 @@ import java.util.stream.Stream;
 public class SaveAllCommand extends Command {
 
     public SaveAllCommand(IBaritone baritone) {
-        super(baritone, "saveall");
+        super(baritone, CommandCategory.UTILITY, "saveall");
     }
 
     @Override

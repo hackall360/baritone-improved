@@ -21,6 +21,7 @@ import baritone.Baritone;
 import baritone.api.IBaritone;
 import baritone.api.Settings;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.RelativeFile;
 import baritone.api.command.exception.CommandException;
@@ -48,7 +49,7 @@ import static baritone.api.utils.SettingsUtil.*;
 public class SetCommand extends Command {
 
     public SetCommand(IBaritone baritone) {
-        super(baritone, "set", "setting", "settings");
+        super(baritone, CommandCategory.SETTINGS, "set", "setting", "settings");
     }
 
     @Override

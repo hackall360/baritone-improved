@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.api.IBaritone;
 import baritone.api.cache.IWaypoint;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.ForWaypoints;
 import baritone.api.command.exception.CommandException;
@@ -33,7 +34,7 @@ import java.util.stream.Stream;
 public class FarmCommand extends Command {
 
     public FarmCommand(IBaritone baritone) {
-        super(baritone, "farm");
+        super(baritone, CommandCategory.TASKS, "farm");
     }
 
     @Override

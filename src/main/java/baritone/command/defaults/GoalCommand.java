@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.RelativeCoordinate;
 import baritone.api.command.datatypes.RelativeGoal;
@@ -35,7 +36,7 @@ import java.util.stream.Stream;
 public class GoalCommand extends Command {
 
     public GoalCommand(IBaritone baritone) {
-        super(baritone, "goal");
+        super(baritone, CommandCategory.NAVIGATION, "goal");
     }
 
     @Override

@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.command.exception.CommandInvalidTypeException;
@@ -34,7 +35,7 @@ import java.util.stream.Stream;
 public final class SeedCommand extends Command {
 
     public SeedCommand(IBaritone baritone) {
-        super(baritone, "seed");
+        super(baritone, CommandCategory.SEED, "seed");
     }
 
     @Override
@@ -97,12 +98,50 @@ public final class SeedCommand extends Command {
                 seedPathing.setGenerationMode(mode);
                 logDirect("Predictive ore mode set to " + mode.name().toLowerCase(Locale.ROOT) + ".");
             }
+            case "prediction", "pathing" -> {
+                args.requireMin(1);
+                String literal = args.getString();
+                args.requireMax(0);
+                boolean enable = parseToggle(literal, args);
+                if (enable) {
+                    if (!seedPathing.setPredictionEnabled(true)) {
+                        logDirect("Cannot enable seed-based prediction without a configured seed. Use #seed set <seed> first.");
+                        return;
+                    }
+                    logDirect("Seed-based predictive planning enabled.");
+                } else {
+                    seedPathing.setPredictionEnabled(false);
+                    logDirect("Seed-based predictive planning disabled.");
+                }
+            }
             default -> throw new CommandInvalidTypeException(args.consumed(), "a valid seed action", action);
         }
     }
 
     @Override
-    public Stream<String> tabComplete(String label, IArgConsumer args) {
+    public Stream<String> tabComplete(String label, IArgConsumer args) throws CommandException {
+        List<String> subCommands = Arrays.asList("set", "clear", "radius", "mode", "prediction", "pathing");
+        if (!args.hasAny()) {
+            return subCommands.stream();
+        }
+        String first = args.peekString().toLowerCase(Locale.US);
+        if (args.hasExactlyOne()) {
+            return subCommands.stream().filter(option -> option.startsWith(first));
+        }
+        if (!args.has(2)) {
+            return Stream.empty();
+        }
+        if (first.equals("mode")) {
+            String prefix = args.peekString(1).toLowerCase(Locale.US);
+            return Arrays.stream(SeedOreMode.values())
+                    .map(mode -> mode.name().toLowerCase(Locale.US))
+                    .filter(mode -> mode.startsWith(prefix));
+        }
+        if (first.equals("prediction") || first.equals("pathing")) {
+            String prefix = args.peekString(1).toLowerCase(Locale.US);
+            return Stream.of("true", "false", "on", "off", "enable", "disable")
+                    .filter(option -> option.startsWith(prefix));
+        }
         return Stream.empty();
     }
 
@@ -121,7 +160,19 @@ public final class SeedCommand extends Command {
                 "> seed set <seed> - configure the world seed for predictive planning",
                 "> seed clear - remove the configured predictive seed",
                 "> seed radius <chunks> - update the predictive pre-generation radius",
-                "> seed mode <terrain|veins|ores> - control ore enrichment while pre-generating"
+                "> seed mode <terrain|veins|ores> - control ore enrichment while pre-generating",
+                "> seed prediction <on|off> - toggle seed-based path prediction"
         );
+    }
+
+    private boolean parseToggle(String literal, IArgConsumer args) throws CommandInvalidTypeException {
+        String normalized = literal.toLowerCase(Locale.US);
+        if (normalized.equals("true") || normalized.equals("on") || normalized.equals("enable")) {
+            return true;
+        }
+        if (normalized.equals("false") || normalized.equals("off") || normalized.equals("disable")) {
+            return false;
+        }
+        throw new CommandInvalidTypeException(null, "true/false", literal);
     }
 }

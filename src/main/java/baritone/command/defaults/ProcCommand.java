@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.command.exception.CommandInvalidStateException;
@@ -33,7 +34,7 @@ import java.util.stream.Stream;
 public class ProcCommand extends Command {
 
     public ProcCommand(IBaritone baritone) {
-        super(baritone, "proc");
+        super(baritone, CommandCategory.DIAGNOSTICS, "proc");
     }
 
     @Override

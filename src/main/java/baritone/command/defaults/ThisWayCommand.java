@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.pathing.goals.GoalXZ;
@@ -30,7 +31,7 @@ import java.util.stream.Stream;
 public class ThisWayCommand extends Command {
 
     public ThisWayCommand(IBaritone baritone) {
-        super(baritone, "thisway", "forward");
+        super(baritone, CommandCategory.NAVIGATION, "thisway", "forward");
     }
 
     @Override

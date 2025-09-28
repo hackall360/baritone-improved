@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.utils.BetterBlockPos;
@@ -30,7 +31,7 @@ import java.util.stream.Stream;
 public class RenderCommand extends Command {
 
     public RenderCommand(IBaritone baritone) {
-        super(baritone, "render");
+        super(baritone, CommandCategory.RENDERING, "render");
     }
 
     @Override

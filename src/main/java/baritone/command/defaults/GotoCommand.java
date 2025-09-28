@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.ForBlockOptionalMeta;
 import baritone.api.command.datatypes.RelativeCoordinate;
@@ -35,7 +36,7 @@ import java.util.stream.Stream;
 public class GotoCommand extends Command {
 
     protected GotoCommand(IBaritone baritone) {
-        super(baritone, "goto");
+        super(baritone, CommandCategory.NAVIGATION, "goto");
     }
 
     @Override

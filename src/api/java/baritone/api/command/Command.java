@@ -42,6 +42,8 @@ public abstract class Command implements ICommand {
     protected IBaritone baritone;
     protected IPlayerContext ctx;
 
+    protected final CommandCategory category;
+
     /**
      * The names of this command. This is what you put after the command prefix.
      */
@@ -53,15 +55,25 @@ public abstract class Command implements ICommand {
      * @param names The names of this command. This is what you put after the command prefix.
      */
     protected Command(IBaritone baritone, String... names) {
+        this(baritone, CommandCategory.GENERAL, names);
+    }
+
+    protected Command(IBaritone baritone, CommandCategory category, String... names) {
         this.names = Collections.unmodifiableList(Stream.of(names)
                 .map(s -> s.toLowerCase(Locale.US))
                 .collect(Collectors.toList()));
         this.baritone = baritone;
         this.ctx = baritone.getPlayerContext();
+        this.category = category;
     }
 
     @Override
     public final List<String> getNames() {
         return this.names;
+    }
+
+    @Override
+    public CommandCategory getCategory() {
+        return category;
     }
 }

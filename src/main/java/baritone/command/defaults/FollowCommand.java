@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.KeepName;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.EntityClassById;
 import baritone.api.command.datatypes.IDatatypeFor;
@@ -41,7 +42,7 @@ import net.minecraft.world.entity.player.Player;
 public class FollowCommand extends Command {
 
     public FollowCommand(IBaritone baritone) {
-        super(baritone, "follow");
+        super(baritone, CommandCategory.TASKS, "follow");
     }
 
     @Override

@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.api.BaritoneAPI;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.ForBlockOptionalMeta;
 import baritone.api.command.exception.CommandException;
@@ -33,7 +34,7 @@ import java.util.stream.Stream;
 public class MineCommand extends Command {
 
     public MineCommand(IBaritone baritone) {
-        super(baritone, "mine");
+        super(baritone, CommandCategory.TASKS, "mine");
     }
 
     @Override

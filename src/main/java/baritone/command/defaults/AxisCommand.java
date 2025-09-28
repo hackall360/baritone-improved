@@ -19,6 +19,7 @@ package baritone.command.defaults;
 
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.pathing.goals.Goal;
@@ -31,7 +32,7 @@ import java.util.stream.Stream;
 public class AxisCommand extends Command {
 
     public AxisCommand(IBaritone baritone) {
-        super(baritone, "axis", "highway");
+        super(baritone, CommandCategory.NAVIGATION, "axis", "highway");
     }
 
     @Override

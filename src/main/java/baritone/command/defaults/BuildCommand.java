@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.Baritone;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.datatypes.RelativeBlockPos;
 import baritone.api.command.datatypes.RelativeFile;
@@ -40,7 +41,7 @@ public class BuildCommand extends Command {
     private final File schematicsDir;
 
     public BuildCommand(IBaritone baritone) {
-        super(baritone, "build");
+        super(baritone, CommandCategory.BUILDING, "build");
         this.schematicsDir = new File(baritone.getPlayerContext().minecraft().gameDirectory, "schematics");
     }
 

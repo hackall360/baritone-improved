@@ -21,6 +21,7 @@ import baritone.api.IBaritone;
 import baritone.api.behavior.IHumanizationBehavior;
 import baritone.api.behavior.humanization.HumanizationProfileSnapshot;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.argument.ICommandArgument;
 import baritone.api.command.exception.CommandException;
@@ -39,7 +40,7 @@ public class HumanizationCommand extends Command {
     private static final List<String> ACTIONS = Arrays.asList("record", "stop", "reset", "status");
 
     public HumanizationCommand(IBaritone baritone) {
-        super(baritone, "humanization");
+        super(baritone, CommandCategory.HUMANIZATION, "humanization");
     }
 
     @Override

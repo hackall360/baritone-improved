@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.Baritone;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 
@@ -33,7 +34,7 @@ public class AutoEatThresholdCommand extends Command {
     private static final int MAX_FOOD_LEVEL = 20;
 
     public AutoEatThresholdCommand(IBaritone baritone) {
-        super(baritone, "autoeatthreshold");
+        super(baritone, CommandCategory.AUTOMATION_SETTINGS, "autoeatthreshold");
     }
 
     @Override

@@ -20,6 +20,7 @@ package baritone.command.defaults;
 import baritone.Baritone;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
+import baritone.api.command.CommandCategory;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.command.exception.CommandInvalidStateException;
@@ -44,7 +45,7 @@ import static baritone.api.command.IBaritoneChatControl.FORCE_COMMAND_PREFIX;
 public class ElytraCommand extends Command {
 
     public ElytraCommand(IBaritone baritone) {
-        super(baritone, "elytra");
+        super(baritone, CommandCategory.TASKS, "elytra");
     }
 
     @Override
