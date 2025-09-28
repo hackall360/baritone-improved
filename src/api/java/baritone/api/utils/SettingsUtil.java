@@ -18,6 +18,7 @@
 package baritone.api.utils;
 
 import baritone.api.BaritoneAPI;
+import baritone.api.IBaritone;
 import baritone.api.Settings;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Direction;
@@ -205,6 +206,12 @@ public class SettingsUtil {
         Class intendedType = setting.getValueClass();
         ISettingParser ioMethod = Parser.getParser(setting.getType());
         Object parsed = ioMethod.parse(setting.getType(), settingValue);
+        if (setting == settings.ignoreServerOreData && parsed instanceof Boolean bool && bool) {
+            IBaritone primary = BaritoneAPI.getProvider().getPrimaryBaritone();
+            if (primary == null || !primary.getSeedPathing().hasSeed()) {
+                throw new IllegalStateException("Cannot enable ignoreServerOreData without a configured seed");
+            }
+        }
         if (!intendedType.isInstance(parsed)) {
             throw new IllegalStateException(ioMethod + " parser returned incorrect type, expected " + intendedType + " got " + parsed + " which is " + parsed.getClass());
         }

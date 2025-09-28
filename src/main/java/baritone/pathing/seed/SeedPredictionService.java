@@ -25,6 +25,7 @@ import baritone.pathing.seed.pregen.SectionStore;
 import baritone.pathing.movement.CalculationContext;
 import baritone.utils.BlockStateInterface;
 import baritone.utils.pathing.Favoring;
+import baritone.pathing.seed.ore.PredictedOreTracker;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -77,6 +78,7 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
     private volatile SectionStore sectionStore;
     private volatile SeedOreMode oreMode;
     private volatile int pregenRadius;
+    private final PredictedOreTracker oreTracker = new PredictedOreTracker();
 
     public SeedPredictionService(Baritone baritone) {
         this.baritone = baritone;
@@ -90,7 +92,7 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         this.enabled = settings.seedBasedPrediction.value && configuredSeed != null;
         this.oreMode = settings.seedPredictionOreMode.value;
         this.pregenRadius = clampRadius(settings.seedPredictionPregenRadius.value);
-        SectionPregenQueue.init(pregenExecutor, null);
+        SectionPregenQueue.init(pregenExecutor, null, null);
     }
 
     @Override
@@ -112,6 +114,7 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         settings.seedPredictionSeedConfigured.value = true;
         summaries.clearAll();
         cache.set(null);
+        oreTracker.clearAll();
         if (settings.seedBasedPrediction.value) {
             this.enabled = true;
         }
@@ -127,6 +130,7 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         cache.set(null);
         enabled = false;
         settings.seedBasedPrediction.value = false;
+        oreTracker.clearAll();
         resetPregen();
     }
 
@@ -161,7 +165,7 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         int clamped = clampRadius(radius);
         this.pregenRadius = clamped;
         Baritone.settings().seedPredictionPregenRadius.value = clamped;
-        SectionPregenQueue.init(pregenExecutor, sectionStore);
+        SectionPregenQueue.init(pregenExecutor, sectionStore, generatorContext != null ? this::handleGeneratedSection : null);
     }
 
     @Override
@@ -173,7 +177,8 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
     public void setGenerationMode(SeedOreMode mode) {
         this.oreMode = mode != null ? mode : SeedOreMode.TERRAIN_ONLY;
         Baritone.settings().seedPredictionOreMode.value = this.oreMode;
-        SectionPregenQueue.init(pregenExecutor, sectionStore);
+        oreTracker.clearAll();
+        SectionPregenQueue.init(pregenExecutor, sectionStore, generatorContext != null ? this::handleGeneratedSection : null);
     }
 
     public void applySeedFavoring(BetterBlockPos start, Goal goal, Favoring favoring, CalculationContext context, IPath previous) {
@@ -274,7 +279,8 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         generatorContext = new GeneratorContext(seed, registries, holder, randomState,
                 level.dimensionTypeRegistration(), level.dimension(), saveRoot);
         sectionStore = new SectionStore(saveRoot);
-        SectionPregenQueue.init(pregenExecutor, sectionStore);
+        oreTracker.clear(level.dimension());
+        SectionPregenQueue.init(pregenExecutor, sectionStore, this::handleGeneratedSection);
     }
 
     private Path resolveSaveRoot(ClientLevel level) {
@@ -291,9 +297,13 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
     }
 
     private void resetPregen() {
+        GeneratorContext previous = generatorContext;
+        if (previous != null) {
+            oreTracker.clear(previous.dimensionKey());
+        }
         generatorContext = null;
         sectionStore = null;
-        SectionPregenQueue.init(pregenExecutor, null);
+        SectionPregenQueue.init(pregenExecutor, null, null);
     }
 
     private int clampRadius(int radius) {
@@ -356,6 +366,52 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
                 favoring.multiply(BetterBlockPos.longHash(blockX, y, blockZ), multiplier);
             });
         }
+    }
+
+    private void handleGeneratedSection(baritone.pathing.seed.pregen.SectionBlob blob) {
+        GeneratorContext context = generatorContext;
+        if (context == null) {
+            return;
+        }
+        if (oreMode != SeedOreMode.TERRAIN_PLUS_EXACT_ORES) {
+            return;
+        }
+        oreTracker.ingest(context.dimensionKey(), blob);
+    }
+
+    public List<BlockPos> predictedOreTargets(Level level, baritone.api.utils.BlockOptionalMetaLookup filter, BlockPos origin, int max) {
+        if (!isPredictionEnabled() || level == null) {
+            return Collections.emptyList();
+        }
+        return oreTracker.query(level.dimension(), filter, origin, max);
+    }
+
+    public void markVeinMining(Level level, BlockPos pos) {
+        if (!isPredictionEnabled() || level == null || pos == null) {
+            return;
+        }
+        oreTracker.markVeinMining(level.dimension(), pos);
+    }
+
+    public void markVeinMined(Level level, BlockPos pos) {
+        if (!isPredictionEnabled() || level == null || pos == null) {
+            return;
+        }
+        oreTracker.markVeinMined(level.dimension(), pos);
+    }
+
+    public void markVeinAvailable(Level level, BlockPos pos) {
+        if (!isPredictionEnabled() || level == null || pos == null) {
+            return;
+        }
+        oreTracker.markVeinAvailable(level.dimension(), pos);
+    }
+
+    public BlockState predictedBlockState(Level level, BlockPos pos, BlockState fallback) {
+        if (!isPredictionEnabled() || level == null || pos == null) {
+            return fallback;
+        }
+        return oreTracker.predictedState(level.dimension(), pos, fallback);
     }
 
     private SurfaceMetrics analyzeChunk(Level world, LevelChunk chunk) {

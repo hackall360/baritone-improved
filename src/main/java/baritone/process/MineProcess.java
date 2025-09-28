@@ -40,6 +40,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.Level;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -89,7 +90,12 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
                 if (Baritone.settings().notificationOnMineFail.value) {
                     logNotification("Unable to find any path to " + filter + ", blacklisting presumably unreachable closest instance...", true);
                 }
-                knownOreLocations.stream().min(Comparator.comparingDouble(ctx.playerFeet()::distSqr)).ifPresent(blacklist::add);
+                knownOreLocations.stream().min(Comparator.comparingDouble(ctx.playerFeet()::distSqr)).ifPresent(pos -> {
+                    blacklist.add(pos);
+                    if (Baritone.settings().ignoreServerOreData.value) {
+                        baritone.getSeedPrediction().markVeinMined(ctx.world(), pos);
+                    }
+                });
                 knownOreLocations.removeIf(blacklist::contains);
             } else {
                 logDirect("Unable to find any path to " + filter + ", canceling mine");
@@ -186,6 +192,9 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
             List<BlockPos> locs2 = prune(context, new ArrayList<>(locs), filter, Baritone.settings().mineMaxOreLocationsCount.value, blacklist, droppedItemsScan());
             // can't reassign locs, gotta make a new var locs2, because we use it in a lambda right here, and variables you use in a lambda must be effectively final
             Goal goal = new GoalComposite(locs2.stream().map(loc -> coalesce(loc, locs2, context)).toArray(Goal[]::new));
+            if (Baritone.settings().ignoreServerOreData.value && !locs2.isEmpty()) {
+                baritone.getSeedPrediction().markVeinMining(context.world, locs2.get(0));
+            }
             knownOreLocations = locs2;
             return new PathingCommand(goal, legit ? PathingCommandType.FORCE_REVALIDATE_GOAL_AND_PATH : PathingCommandType.REVALIDATE_GOAL_AND_PATH);
         }
@@ -230,6 +239,12 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
         }
         if (Baritone.settings().legitMine.value) {
             return;
+        }
+        if (Baritone.settings().ignoreServerOreData.value) {
+            Level world = context.world;
+            for (BlockPos pos : already) {
+                baritone.getSeedPrediction().markVeinAvailable(world, pos);
+            }
         }
         List<BlockPos> dropped = droppedItemsScan();
         List<BlockPos> locs = searchWorld(context, filter, Baritone.settings().mineMaxOreLocationsCount.value, already, blacklist, dropped);
@@ -389,6 +404,16 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
             )); // maxSearchRadius is NOT sq
         }
 
+        if (Baritone.settings().ignoreServerOreData.value && ctx.getBaritone() instanceof Baritone brt) {
+            List<BlockPos> predicted = brt.getSeedPrediction().predictedOreTargets(
+                    ctx.world,
+                    filter,
+                    ctx.getBaritone().getPlayerContext().playerFeet(),
+                    max
+            );
+            locs.addAll(predicted);
+        }
+
         locs.addAll(alreadyKnown);
 
         return prune(ctx, locs, filter, max, blacklist, dropped);
@@ -464,6 +489,20 @@ public final class MineProcess extends BaritoneProcessHelper implements IMinePro
 
         if (locs.size() > max) {
             return locs.subList(0, max);
+        }
+        if (Baritone.settings().ignoreServerOreData.value && ctx.getBaritone() instanceof Baritone brt) {
+            Iterator<BlockPos> iterator = locs.iterator();
+            while (iterator.hasNext()) {
+                BlockPos pos = iterator.next();
+                if (!ctx.bsi.worldContainsLoadedChunk(pos.getX(), pos.getZ())) {
+                    continue;
+                }
+                BlockState actual = ctx.bsi.getActualBlockState(pos.getX(), pos.getY(), pos.getZ());
+                if (!filter.has(actual)) {
+                    iterator.remove();
+                    brt.getSeedPrediction().markVeinMined(ctx.world, pos);
+                }
+            }
         }
         return locs;
     }

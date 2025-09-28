@@ -18,6 +18,8 @@
 package baritone.utils;
 
 import baritone.Baritone;
+import baritone.api.BaritoneAPI;
+import baritone.api.IBaritone;
 import baritone.api.utils.IPlayerContext;
 import baritone.cache.CachedRegion;
 import baritone.cache.WorldData;
@@ -33,6 +35,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
+import net.minecraft.world.level.dimension.DimensionType;
 
 /**
  * Wraps get for chuck caching capability
@@ -94,32 +97,41 @@ public class BlockStateInterface {
         return get0(pos.getX(), pos.getY(), pos.getZ());
     }
 
+    public BlockState getActualBlockState(BlockPos pos) {
+        return getActualBlockState(pos.getX(), pos.getY(), pos.getZ());
+    }
+
     public BlockState get0(int x, int y, int z) { // Mickey resigned
-        y -= world.dimensionType().minY();
-        // Invalid vertical position
-        if (y < 0 || y >= world.dimensionType().height()) {
+        return getInternal(x, y, z, true);
+    }
+
+    public BlockState getActualBlockState(int x, int y, int z) {
+        return getInternal(x, y, z, false);
+    }
+
+    private BlockState getInternal(int x, int y, int z, boolean allowPrediction) {
+        DimensionType dimensionType = world.dimensionType();
+        int minY = dimensionType.minY();
+        int height = dimensionType.height();
+        int worldY = y;
+        int localY = worldY - minY;
+        if (localY < 0 || localY >= height) {
             return AIR;
         }
 
         if (useTheRealWorld) {
             LevelChunk cached = prev;
-            // there's great cache locality in block state lookups
-            // generally it's within each movement
-            // if it's the same chunk as last time
-            // we can just skip the mc.world.getChunk lookup
-            // which is a Long2ObjectOpenHashMap.get
-            // see issue #113
             if (cached != null && cached.getPos().x == x >> 4 && cached.getPos().z == z >> 4) {
-                return getFromChunk(cached, x, y, z);
+                BlockState state = getFromChunk(cached, x, localY, z);
+                return allowPrediction ? maybeOverrideWithPrediction(state, x, worldY, z) : state;
             }
             LevelChunk chunk = provider.getChunk(x >> 4, z >> 4, ChunkStatus.FULL, false);
             if (chunk != null && !chunk.isEmpty()) {
                 prev = chunk;
-                return getFromChunk(chunk, x, y, z);
+                BlockState state = getFromChunk(chunk, x, localY, z);
+                return allowPrediction ? maybeOverrideWithPrediction(state, x, worldY, z) : state;
             }
         }
-        // same idea here, skip the Long2ObjectOpenHashMap.get if at all possible
-        // except here, it's 512x512 tiles instead of 16x16, so even better repetition
         CachedRegion cached = prevCached;
         if (cached == null || cached.getX() != x >> 9 || cached.getZ() != z >> 9) {
             if (worldData == null) {
@@ -132,11 +144,11 @@ public class BlockStateInterface {
             prevCached = region;
             cached = region;
         }
-        BlockState type = cached.getBlock(x & 511, y + world.dimensionType().minY(), z & 511);
+        BlockState type = cached.getBlock(x & 511, worldY, z & 511);
         if (type == null) {
-            return AIR;
+            type = AIR;
         }
-        return type;
+        return allowPrediction ? maybeOverrideWithPrediction(type, x, worldY, z) : type;
     }
 
     public boolean isLoaded(int x, int z) {
@@ -171,5 +183,16 @@ public class BlockStateInterface {
             return AIR;
         }
         return section.getBlockState(x & 15, y & 15, z & 15);
+    }
+
+    private BlockState maybeOverrideWithPrediction(BlockState original, int x, int y, int z) {
+        if (!Baritone.settings().ignoreServerOreData.value) {
+            return original;
+        }
+        IBaritone primary = BaritoneAPI.getProvider().getPrimaryBaritone();
+        if (!(primary instanceof Baritone baritone)) {
+            return original;
+        }
+        return baritone.getSeedPrediction().predictedBlockState(world, new BlockPos(x, y, z), original);
     }
 }
