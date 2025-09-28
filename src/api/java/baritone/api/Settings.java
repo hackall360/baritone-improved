@@ -17,6 +17,7 @@
 
 package baritone.api;
 
+import baritone.api.pathing.seed.SeedOreMode;
 import baritone.api.utils.Helper;
 import baritone.api.utils.NotificationHelper;
 import baritone.api.utils.SettingsUtil;
@@ -193,6 +194,16 @@ public final class Settings {
      * Tracks whether a predictive planning seed has been explicitly provided by the user.
      */
     public final Setting<Boolean> seedPredictionSeedConfigured = new Setting<>(false);
+
+    /**
+     * Radius in chunks around the player that should be pre-generated using the configured seed.
+     */
+    public final Setting<Integer> seedPredictionPregenRadius = new Setting<>(6);
+
+    /**
+     * Controls whether predictive sections should include heuristic ore markings.
+     */
+    public final Setting<SeedOreMode> seedPredictionOreMode = new Setting<>(SeedOreMode.TERRAIN_ONLY);
 
     /**
      * Allows overriding the world seed used for all predictive systems, such as macro planning or seed cracking.

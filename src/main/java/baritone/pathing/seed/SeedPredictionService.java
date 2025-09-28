@@ -7,19 +7,32 @@ import baritone.api.pathing.goals.Goal;
 import baritone.api.pathing.goals.GoalXZ;
 import baritone.api.pathing.goals.GoalYLevel;
 import baritone.api.pathing.seed.ISeedPathing;
+import baritone.api.pathing.seed.SeedOreMode;
 import baritone.api.utils.BetterBlockPos;
 import baritone.api.utils.interfaces.IGoalRenderPos;
 import baritone.api.event.events.ChunkEvent;
 import baritone.api.event.events.type.EventState;
 import baritone.api.event.listener.AbstractGameEventListener;
+import baritone.api.event.events.TickEvent;
+import baritone.api.event.events.WorldEvent;
 import baritone.cache.seed.DeflateBlockCompressor;
 import baritone.cache.seed.RegionLayout;
 import baritone.cache.seed.SeedSummaryManager;
 import baritone.cache.seed.SurfaceMetrics;
+import baritone.pathing.seed.pregen.GeneratorContext;
+import baritone.pathing.seed.pregen.SectionPregenQueue;
+import baritone.pathing.seed.pregen.SectionStore;
 import baritone.pathing.movement.CalculationContext;
 import baritone.utils.BlockStateInterface;
 import baritone.utils.pathing.Favoring;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Mob;
@@ -29,14 +42,20 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
+import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.util.Mth;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static baritone.pathing.movement.MovementHelper.canWalkOn;
 import static baritone.pathing.movement.MovementHelper.canWalkThrough;
@@ -53,16 +72,25 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
 
     private volatile boolean enabled;
     private volatile Long configuredSeed;
+    private final ExecutorService pregenExecutor;
+    private volatile GeneratorContext generatorContext;
+    private volatile SectionStore sectionStore;
+    private volatile SeedOreMode oreMode;
+    private volatile int pregenRadius;
 
     public SeedPredictionService(Baritone baritone) {
         this.baritone = baritone;
         this.summaries = new SeedSummaryManager(new DeflateBlockCompressor());
         Settings settings = Baritone.settings();
         this.planner = new PredictivePathPlanner(summaries, settings);
+        this.pregenExecutor = Executors.newFixedThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors() - 1));
         if (settings.seedPredictionSeedConfigured.value) {
             this.configuredSeed = settings.seedPredictionSeed.value;
         }
         this.enabled = settings.seedBasedPrediction.value && configuredSeed != null;
+        this.oreMode = settings.seedPredictionOreMode.value;
+        this.pregenRadius = clampRadius(settings.seedPredictionPregenRadius.value);
+        SectionPregenQueue.init(pregenExecutor, null);
     }
 
     @Override
@@ -87,6 +115,7 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         if (settings.seedBasedPrediction.value) {
             this.enabled = true;
         }
+        resetPregen();
     }
 
     @Override
@@ -98,6 +127,7 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         cache.set(null);
         enabled = false;
         settings.seedBasedPrediction.value = false;
+        resetPregen();
     }
 
     @Override
@@ -116,8 +146,34 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
         Baritone.settings().seedBasedPrediction.value = enabled;
         if (!enabled) {
             cache.set(null);
+            resetPregen();
         }
         return isPredictionEnabled();
+    }
+
+    @Override
+    public int pregenRadius() {
+        return pregenRadius;
+    }
+
+    @Override
+    public void setPregenRadius(int radius) {
+        int clamped = clampRadius(radius);
+        this.pregenRadius = clamped;
+        Baritone.settings().seedPredictionPregenRadius.value = clamped;
+        SectionPregenQueue.init(pregenExecutor, sectionStore);
+    }
+
+    @Override
+    public SeedOreMode generationMode() {
+        return oreMode;
+    }
+
+    @Override
+    public void setGenerationMode(SeedOreMode mode) {
+        this.oreMode = mode != null ? mode : SeedOreMode.TERRAIN_ONLY;
+        Baritone.settings().seedPredictionOreMode.value = this.oreMode;
+        SectionPregenQueue.init(pregenExecutor, sectionStore);
     }
 
     public void applySeedFavoring(BetterBlockPos start, Goal goal, Favoring favoring, CalculationContext context, IPath previous) {
@@ -141,6 +197,22 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
     }
 
     @Override
+    public void onTick(TickEvent event) {
+        if (event.getType() != TickEvent.Type.IN || event.getState() != EventState.POST) {
+            return;
+        }
+        tickPregen();
+    }
+
+    @Override
+    public void onWorldEvent(WorldEvent event) {
+        AbstractGameEventListener.super.onWorldEvent(event);
+        if (event.getState() == EventState.POST) {
+            resetPregen();
+        }
+    }
+
+    @Override
     public void onChunkEvent(ChunkEvent event) {
         if (event.getState() != EventState.POST) {
             return;
@@ -160,6 +232,72 @@ public final class SeedPredictionService implements ISeedPathing, AbstractGameEv
                 summaries.overrideSurfaceMetrics(event.getX(), event.getZ(), metrics);
             }
         }
+    }
+
+    private void tickPregen() {
+        if (!isPredictionEnabled()) {
+            return;
+        }
+        Long seed = configuredSeed;
+        if (seed == null) {
+            return;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        ClientLevel level = minecraft.level;
+        if (level == null || minecraft.player == null) {
+            return;
+        }
+        ensureGeneratorContext(seed, level);
+        if (generatorContext == null || sectionStore == null) {
+            return;
+        }
+        int chunkX = minecraft.player.getBlockX() >> 4;
+        int chunkZ = minecraft.player.getBlockZ() >> 4;
+        SectionPregenQueue.queueAround(generatorContext, chunkX, chunkZ, pregenRadius, oreMode);
+    }
+
+    private void ensureGeneratorContext(long seed, ClientLevel level) {
+        if (generatorContext != null) {
+            return;
+        }
+        RegistryAccess registries = level.registryAccess();
+        Registry<NoiseGeneratorSettings> noiseSettings = registries.lookupOrThrow(Registries.NOISE_SETTINGS);
+        NoiseGeneratorSettings settingsValue = noiseSettings.getOptional(NoiseGeneratorSettings.OVERWORLD)
+                .or(() -> noiseSettings.stream().findFirst())
+                .orElse(null);
+        if (settingsValue == null) {
+            return;
+        }
+        Holder<NoiseGeneratorSettings> holder = Holder.direct(settingsValue);
+        RandomState randomState = RandomState.create(settingsValue, registries.lookupOrThrow(Registries.NOISE), seed);
+        Path saveRoot = resolveSaveRoot(level);
+        generatorContext = new GeneratorContext(seed, registries, holder, randomState,
+                level.dimensionTypeRegistration(), level.dimension(), saveRoot);
+        sectionStore = new SectionStore(saveRoot);
+        SectionPregenQueue.init(pregenExecutor, sectionStore);
+    }
+
+    private Path resolveSaveRoot(ClientLevel level) {
+        Minecraft minecraft = Minecraft.getInstance();
+        ServerData server = minecraft.getCurrentServer();
+        String serverId = server != null ? server.ip : "singleplayer";
+        serverId = serverId.replace(':', '_');
+        String dimensionId = level.dimension().location().toString().replace(':', '_');
+        return minecraft.gameDirectory.toPath()
+                .resolve("baritone")
+                .resolve("seed-pregen")
+                .resolve(serverId)
+                .resolve(dimensionId);
+    }
+
+    private void resetPregen() {
+        generatorContext = null;
+        sectionStore = null;
+        SectionPregenQueue.init(pregenExecutor, null);
+    }
+
+    private int clampRadius(int radius) {
+        return Mth.clamp(radius, 0, 32);
     }
 
     private List<BetterBlockPos> planMacroPath(BetterBlockPos start, BetterBlockPos goal, boolean preferUnderground) {
