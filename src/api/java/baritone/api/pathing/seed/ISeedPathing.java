@@ -58,4 +58,28 @@ public interface ISeedPathing {
      * @return {@code true} if predictive planning will be active after applying the requested state
      */
     boolean setPredictionEnabled(boolean enabled);
+
+    /**
+     * @return the configured pre-generation radius in chunks.
+     */
+    int pregenRadius();
+
+    /**
+     * Update the pre-generation radius.
+     *
+     * @param radius the radius in chunks, clamped to an implementation-defined range
+     */
+    void setPregenRadius(int radius);
+
+    /**
+     * @return the active ore enrichment mode used when generating predictive sections.
+     */
+    SeedOreMode generationMode();
+
+    /**
+     * Configure which ore enrichment mode should be used when generating predictive sections.
+     *
+     * @param mode the desired ore mode
+     */
+    void setGenerationMode(SeedOreMode mode);
 }

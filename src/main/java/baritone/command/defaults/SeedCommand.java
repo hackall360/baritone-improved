@@ -23,6 +23,7 @@ import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.exception.CommandException;
 import baritone.api.command.exception.CommandInvalidTypeException;
 import baritone.api.pathing.seed.ISeedPathing;
+import baritone.api.pathing.seed.SeedOreMode;
 
 import java.util.Arrays;
 import java.util.List;
@@ -46,6 +47,8 @@ public final class SeedCommand extends Command {
             } else {
                 logDirect("No predictive seed configured.");
             }
+            logDirect("Pregen radius: " + seedPathing.pregenRadius() + " chunks");
+            logDirect("Ore mode: " + seedPathing.generationMode().name().toLowerCase(Locale.ROOT));
             return;
         }
         String action = args.getString().toLowerCase(Locale.US);
@@ -67,6 +70,32 @@ public final class SeedCommand extends Command {
                 args.requireMax(0);
                 seedPathing.clearSeed();
                 logDirect("Cleared predictive planning seed.");
+            }
+            case "radius" -> {
+                args.requireMin(1);
+                String literal = args.getString();
+                int radius;
+                try {
+                    radius = Integer.parseInt(literal);
+                } catch (NumberFormatException ex) {
+                    throw new CommandInvalidTypeException(args.consumed(), "a valid radius", literal);
+                }
+                args.requireMax(0);
+                seedPathing.setPregenRadius(radius);
+                logDirect("Predictive pregen radius set to " + seedPathing.pregenRadius() + " chunks.");
+            }
+            case "mode" -> {
+                args.requireMin(1);
+                String literal = args.getString();
+                SeedOreMode mode;
+                try {
+                    mode = SeedOreMode.fromString(literal);
+                } catch (IllegalArgumentException ex) {
+                    throw new CommandInvalidTypeException(args.consumed(), "a valid ore mode", literal);
+                }
+                args.requireMax(0);
+                seedPathing.setGenerationMode(mode);
+                logDirect("Predictive ore mode set to " + mode.name().toLowerCase(Locale.ROOT) + ".");
             }
             default -> throw new CommandInvalidTypeException(args.consumed(), "a valid seed action", action);
         }
@@ -90,7 +119,9 @@ public final class SeedCommand extends Command {
                 "Usage:",
                 "> seed - show the currently configured seed",
                 "> seed set <seed> - configure the world seed for predictive planning",
-                "> seed clear - remove the configured predictive seed"
+                "> seed clear - remove the configured predictive seed",
+                "> seed radius <chunks> - update the predictive pre-generation radius",
+                "> seed mode <terrain|veins|ores> - control ore enrichment while pre-generating"
         );
     }
 }
