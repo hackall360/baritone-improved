@@ -31,6 +31,7 @@ import baritone.cache.WorldProvider;
 import baritone.command.manager.CommandManager;
 import baritone.event.GameEventHandler;
 import baritone.process.*;
+import baritone.settings.SettingsProfileManager;
 import baritone.selection.SelectionManager;
 import baritone.utils.BlockStateInterface;
 import baritone.utils.GuiClick;
@@ -90,6 +91,7 @@ public class Baritone implements IBaritone {
     private final PathingControlManager pathingControlManager;
     private final SelectionManager selectionManager;
     private final CommandManager commandManager;
+    private final SettingsProfileManager settingsProfileManager;
 
     private final SeedPredictionService seedPrediction;
 
@@ -142,8 +144,10 @@ public class Baritone implements IBaritone {
         this.worldProvider = new WorldProvider(this);
         this.selectionManager = new SelectionManager(this);
         this.commandManager = new CommandManager(this);
+        this.settingsProfileManager = new SettingsProfileManager(this);
         this.seedPrediction = new SeedPredictionService(this);
         this.gameEventHandler.registerEventListener(this.seedPrediction);
+        this.gameEventHandler.registerEventListener(this.settingsProfileManager);
     }
 
     public void registerBehavior(IBehavior behavior) {
@@ -263,6 +267,10 @@ public class Baritone implements IBaritone {
     @Override
     public CommandManager getCommandManager() {
         return this.commandManager;
+    }
+
+    public SettingsProfileManager getSettingsProfileManager() {
+        return this.settingsProfileManager;
     }
 
     @Override
