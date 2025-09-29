@@ -42,7 +42,9 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -75,6 +77,35 @@ public class SettingsUtil {
     }
 
     public static void readAndApply(Settings settings, String settingsName) {
+        Map<String, String> rawValues = readRaw(settingsName, SETTINGS_DEFAULT_NAME.equals(settingsName));
+        rawValues.forEach((settingName, settingValue) -> {
+            try {
+                parseAndApply(settings, settingName, settingValue);
+            } catch (Exception ex) {
+                Helper.HELPER.logDirect("Unable to parse setting " + settingName + " from " + settingsName);
+                ex.printStackTrace();
+            }
+        });
+    }
+
+    public static synchronized void save(Settings settings) {
+        Map<String, String> values = new HashMap<>();
+        for (Settings.Setting setting : modifiedSettings(settings)) {
+            values.put(setting.getName().toLowerCase(Locale.US), settingValueToString(setting));
+        }
+        writeRaw(SETTINGS_DEFAULT_NAME, values);
+    }
+
+    private static Path settingsByName(String name) {
+        return Minecraft.getInstance().gameDirectory.toPath().resolve("baritone").resolve(name);
+    }
+
+    public static Map<String, String> readRaw(String settingsName) {
+        return readRaw(settingsName, true);
+    }
+
+    public static Map<String, String> readRaw(String settingsName, boolean logMissing) {
+        Map<String, String> values = new HashMap<>();
         try {
             forEachLine(settingsByName(settingsName), line -> {
                 Matcher matcher = SETTING_PATTERN.matcher(line);
@@ -83,40 +114,54 @@ public class SettingsUtil {
                     return;
                 }
 
-                String settingName = matcher.group("setting").toLowerCase();
+                String settingName = matcher.group("setting").toLowerCase(Locale.US);
                 String settingValue = matcher.group("value");
-                // TODO remove soonish
                 if ("allowjumpat256".equals(settingName)) {
                     settingName = "allowjumpatbuildlimit";
                 }
-                try {
-                    parseAndApply(settings, settingName, settingValue);
-                } catch (Exception ex) {
-                    Helper.HELPER.logDirect("Unable to parse line " + line);
-                    ex.printStackTrace();
-                }
+                values.put(settingName, settingValue);
             });
         } catch (NoSuchFileException ignored) {
-            Helper.HELPER.logDirect("Baritone settings file not found, resetting.");
+            if (logMissing) {
+                Helper.HELPER.logDirect("Baritone settings file not found, resetting.");
+            }
         } catch (Exception ex) {
-            Helper.HELPER.logDirect("Exception while reading Baritone settings, some settings may be reset to default values!");
+            Helper.HELPER.logDirect("Exception while reading Baritone settings from " + settingsName + ", some settings may be reset to default values!");
             ex.printStackTrace();
         }
+        return values;
     }
 
-    public static synchronized void save(Settings settings) {
-        try (BufferedWriter out = Files.newBufferedWriter(settingsByName(SETTINGS_DEFAULT_NAME))) {
-            for (Settings.Setting setting : modifiedSettings(settings)) {
-                out.write(settingToString(setting) + "\n");
+    public static synchronized void writeRaw(String settingsName, Map<String, String> values) {
+        Path file = settingsByName(settingsName);
+        try {
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            try (BufferedWriter out = Files.newBufferedWriter(file)) {
+                values.entrySet().stream()
+                        .sorted(Map.Entry.comparingByKey())
+                        .forEach(entry -> {
+                            try {
+                                out.write(entry.getKey() + " " + entry.getValue());
+                                out.newLine();
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+            }
+        } catch (RuntimeException runtime) {
+            if (runtime.getCause() instanceof IOException io) {
+                Helper.HELPER.logDirect("Exception thrown while saving Baritone settings!");
+                io.printStackTrace();
+            } else {
+                throw runtime;
             }
         } catch (Exception ex) {
             Helper.HELPER.logDirect("Exception thrown while saving Baritone settings!");
             ex.printStackTrace();
         }
-    }
-
-    private static Path settingsByName(String name) {
-        return Minecraft.getInstance().gameDirectory.toPath().resolve("baritone").resolve(name);
     }
 
     public static List<Settings.Setting> modifiedSettings(Settings settings) {

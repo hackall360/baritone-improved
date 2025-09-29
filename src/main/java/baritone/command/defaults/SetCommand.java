@@ -30,6 +30,7 @@ import baritone.api.command.exception.CommandInvalidTypeException;
 import baritone.api.command.helpers.Paginator;
 import baritone.api.command.helpers.TabCompleteHelper;
 import baritone.api.utils.SettingsUtil;
+import baritone.settings.SettingsProfileManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
@@ -54,22 +55,45 @@ public class SetCommand extends Command {
 
     @Override
     public void execute(String label, IArgConsumer args) throws CommandException {
-        String arg = args.hasAny() ? args.getString().toLowerCase(Locale.US) : "list";
-        if (Arrays.asList("s", "save").contains(arg)) {
-            SettingsUtil.save(Baritone.settings());
-            logDirect("Settings saved");
+        Baritone impl = (Baritone) this.baritone;
+        SettingsProfileManager profiles = impl.getSettingsProfileManager();
+
+        boolean globalContext = false;
+        String arg = args.hasAny() ? args.getString() : "list";
+        if (arg.equalsIgnoreCase("global")) {
+            globalContext = true;
+            arg = args.hasAny() ? args.getString() : "list";
+        }
+
+        String lowerArg = arg.toLowerCase(Locale.US);
+        if (Arrays.asList("s", "save").contains(lowerArg)) {
+            if (!globalContext && args.hasAny()) {
+                String next = args.peekString();
+                if ("global".equalsIgnoreCase(next)) {
+                    args.getString();
+                    globalContext = true;
+                }
+            }
+            if (globalContext) {
+                profiles.saveGlobalOverrides();
+                logDirect("Global settings saved");
+            } else {
+                profiles.saveActiveProfile();
+                logDirect(String.format("Settings saved for %s", profiles.describeActiveProfile()));
+            }
             return;
         }
-        if (Arrays.asList("load", "ld").contains(arg)) {
-            String file = SETTINGS_DEFAULT_NAME;
+        if (Arrays.asList("load", "ld").contains(lowerArg)) {
+            String file = globalContext ? SETTINGS_DEFAULT_NAME : profiles.getActiveProfileFile();
             if (args.hasAny()) {
                 file = args.getString();
             }
-            // reset to defaults
-            SettingsUtil.modifiedSettings(Baritone.settings()).forEach(Settings.Setting::reset);
-            // then load from disk
-            SettingsUtil.readAndApply(Baritone.settings(), file);
-            logDirect("Settings reloaded from " + file);
+            if (globalContext) {
+                profiles.loadOverridesFromFile(file, true);
+            } else {
+                profiles.loadOverridesFromFile(file, false);
+            }
+            logDirect(String.format("Settings reloaded from %s for %s", file, profiles.describeScope(globalContext)));
             return;
         }
         boolean viewModified = Arrays.asList("m", "mod", "modified").contains(arg);
@@ -118,8 +142,8 @@ public class SetCommand extends Command {
             return;
         }
         args.requireMax(1);
-        boolean resetting = arg.equalsIgnoreCase("reset");
-        boolean toggling = arg.equalsIgnoreCase("toggle");
+        boolean resetting = lowerArg.equals("reset");
+        boolean toggling = lowerArg.equals("toggle");
         boolean doingSomething = resetting || toggling;
         if (resetting) {
             if (!args.hasAny()) {
@@ -127,9 +151,10 @@ public class SetCommand extends Command {
                 logDirect("ALL settings will be reset. Use the 'set modified' or 'modified' commands to see what will be reset.");
                 logDirect("Specify a setting name instead of 'all' to only reset one setting");
             } else if (args.peekString().equalsIgnoreCase("all")) {
-                SettingsUtil.modifiedSettings(Baritone.settings()).forEach(Settings.Setting::reset);
-                logDirect("All settings have been reset to their default values");
-                SettingsUtil.save(Baritone.settings());
+                args.getString();
+                profiles.resetAll(globalContext);
+                logDirect(String.format("All settings for %s have been reset to their default values", profiles.describeScope(globalContext)));
+                profiles.saveScope(globalContext);
                 return;
             }
         }
@@ -156,27 +181,29 @@ public class SetCommand extends Command {
         } else {
             String oldValue = settingValueToString(setting);
             if (resetting) {
-                setting.reset();
+                profiles.resetSetting(setting, globalContext);
             } else if (toggling) {
                 if (setting.getValueClass() != Boolean.class) {
                     throw new CommandInvalidTypeException(args.consumed(), "a toggleable setting", "some other setting");
                 }
                 //noinspection unchecked
                 Settings.Setting<Boolean> asBoolSetting = (Settings.Setting<Boolean>) setting;
-                if (!asBoolSetting.value && setting == Baritone.settings().ignoreServerOreData
-                        && !baritone.getSeedPathing().hasSeed()) {
+                boolean newValue = !asBoolSetting.value;
+                if (newValue && setting == Baritone.settings().ignoreServerOreData
+                        && !impl.getSeedPathing().hasSeed()) {
                     throw new CommandInvalidStateException("Cannot enable ignoreServerOreData without a configured seed");
                 }
-                asBoolSetting.value ^= true;
+                profiles.setValue(setting, Boolean.toString(newValue), globalContext);
                 logDirect(String.format(
-                        "Toggled setting %s to %s",
+                        "Toggled setting %s to %s for %s",
                         setting.getName(),
-                        Boolean.toString((Boolean) setting.value)
+                        Boolean.toString((Boolean) setting.value),
+                        profiles.describeScope(globalContext)
                 ));
             } else {
                 String newValue = args.getString();
                 try {
-                    SettingsUtil.parseAndApply(Baritone.settings(), arg, newValue);
+                    profiles.setValue(setting, newValue, globalContext);
                 } catch (Throwable t) {
                     t.printStackTrace();
                     throw new CommandInvalidTypeException(args.consumed(), "a valid value", t);
@@ -184,10 +211,11 @@ public class SetCommand extends Command {
             }
             if (!toggling) {
                 logDirect(String.format(
-                        "Successfully %s %s to %s",
+                        "Successfully %s %s to %s for %s",
                         resetting ? "reset" : "set",
                         setting.getName(),
-                        settingValueToString(setting)
+                        settingValueToString(setting),
+                        profiles.describeScope(globalContext)
                 ));
             }
             MutableComponent oldValueComponent = Component.literal(String.format("Old value: %s", oldValue));
@@ -197,7 +225,11 @@ public class SetCommand extends Command {
                             Component.literal("Click to set the setting back to this value")
                     ))
                     .withClickEvent(new ClickEvent.RunCommand(
-                            FORCE_COMMAND_PREFIX + String.format("set %s %s", setting.getName(), oldValue)
+                            FORCE_COMMAND_PREFIX + String.format(
+                                    globalContext ? "set global %s %s" : "set %s %s",
+                                    setting.getName(),
+                                    oldValue
+                            )
                     )));
             logDirect(oldValueComponent);
             if ((setting.getName().equals("chatControl") && !(Boolean) setting.value && !Baritone.settings().chatControlAnyway.value) ||
@@ -207,51 +239,69 @@ public class SetCommand extends Command {
                 logDirect("Warning: Prefixed commands will no longer work. If you want to revert this change, use chat control (if enabled) or click the old value listed above.", ChatFormatting.RED);
             }
         }
-        SettingsUtil.save(Baritone.settings());
+        profiles.saveScope(globalContext);
     }
 
     @Override
     public Stream<String> tabComplete(String label, IArgConsumer args) throws CommandException {
-        if (args.hasAny()) {
-            String arg = args.getString();
-            if (args.hasExactlyOne() && !Arrays.asList("s", "save").contains(args.peekString().toLowerCase(Locale.US))) {
-                if (arg.equalsIgnoreCase("reset")) {
-                    return new TabCompleteHelper()
-                            .addModifiedSettings()
-                            .prepend("all")
-                            .filterPrefix(args.getString())
-                            .stream();
-                } else if (arg.equalsIgnoreCase("toggle")) {
-                    return new TabCompleteHelper()
-                            .addToggleableSettings()
-                            .filterPrefix(args.getString())
-                            .stream();
-                } else if (Arrays.asList("ld", "load").contains(arg.toLowerCase(Locale.US))) {
-                    // settings always use the directory of the main Minecraft instance
-                    return RelativeFile.tabComplete(args, Minecraft.getInstance().gameDirectory.toPath().resolve("baritone").toFile());
-                }
-                Settings.Setting setting = Baritone.settings().byLowerName.get(arg.toLowerCase(Locale.US));
-                if (setting != null) {
-                    if (setting.getType() == Boolean.class) {
-                        TabCompleteHelper helper = new TabCompleteHelper();
-                        if ((Boolean) setting.value) {
-                            helper.append("true", "false");
-                        } else {
-                            helper.append("false", "true");
-                        }
-                        return helper.filterPrefix(args.getString()).stream();
-                    } else {
-                        return Stream.of(settingValueToString(setting));
-                    }
-                }
-            } else if (!args.hasAny()) {
-                return new TabCompleteHelper()
-                        .addSettings()
-                        .sortAlphabetically()
-                        .prepend("list", "modified", "reset", "toggle", "save", "load")
-                        .filterPrefix(arg)
-                        .stream();
+        if (!args.hasAny()) {
+            return new TabCompleteHelper()
+                    .addSettings()
+                    .sortAlphabetically()
+                    .prepend("list", "modified", "reset", "toggle", "save", "load", "global")
+                    .stream();
+        }
+
+        String first = args.getString();
+        if (first.equalsIgnoreCase("global")) {
+            if (!args.hasAny()) {
+                return tabCompleteAfterPrefix(args, "", false);
             }
+            return tabCompleteAfterPrefix(args, args.getString(), false);
+        }
+
+        return tabCompleteAfterPrefix(args, first, true);
+    }
+
+    private Stream<String> tabCompleteAfterPrefix(IArgConsumer args, String currentArg, boolean includeGlobal) throws CommandException {
+        if (args.hasExactlyOne() && !Arrays.asList("s", "save").contains(args.peekString().toLowerCase(Locale.US))) {
+            if (currentArg.equalsIgnoreCase("reset")) {
+                return new TabCompleteHelper()
+                        .addModifiedSettings()
+                        .prepend("all")
+                        .filterPrefix(args.getString())
+                        .stream();
+            } else if (currentArg.equalsIgnoreCase("toggle")) {
+                return new TabCompleteHelper()
+                        .addToggleableSettings()
+                        .filterPrefix(args.getString())
+                        .stream();
+            } else if (Arrays.asList("ld", "load").contains(currentArg.toLowerCase(Locale.US))) {
+                return RelativeFile.tabComplete(args, Minecraft.getInstance().gameDirectory.toPath().resolve("baritone").toFile());
+            }
+            Settings.Setting setting = Baritone.settings().byLowerName.get(currentArg.toLowerCase(Locale.US));
+            if (setting != null) {
+                if (setting.getType() == Boolean.class) {
+                    TabCompleteHelper helper = new TabCompleteHelper();
+                    if ((Boolean) setting.value) {
+                        helper.append("true", "false");
+                    } else {
+                        helper.append("false", "true");
+                    }
+                    return helper.filterPrefix(args.getString()).stream();
+                } else {
+                    return Stream.of(settingValueToString(setting));
+                }
+            }
+        } else if (!args.hasAny()) {
+            TabCompleteHelper helper = new TabCompleteHelper()
+                    .addSettings()
+                    .sortAlphabetically()
+                    .prepend("list", "modified", "reset", "toggle", "save", "load");
+            if (includeGlobal) {
+                helper.prepend("global");
+            }
+            return helper.filterPrefix(currentArg).stream();
         }
         return Stream.empty();
     }
@@ -271,13 +321,17 @@ public class SetCommand extends Command {
                 "> set list [page] - View all settings",
                 "> set modified [page] - View modified settings",
                 "> set <setting> - View the current value of a setting",
-                "> set <setting> <value> - Set the value of a setting",
-                "> set reset all - Reset ALL SETTINGS to their defaults",
+                "> set <setting> <value> - Set the value of a setting for the current server or world",
+                "> set global <setting> <value> - Set a global default value that applies everywhere",
+                "> set reset all - Reset all settings for the current server or world to their defaults",
+                "> set global reset all - Reset ALL global settings to their defaults",
                 "> set reset <setting> - Reset a setting to its default",
                 "> set toggle <setting> - Toggle a boolean setting",
-                "> set save - Save all settings (this is automatic tho)",
-                "> set load - Load settings from settings.txt",
-                "> set load [filename] - Load settings from another file in your minecraft/baritone"
+                "> set save - Save settings for the current server or world (done automatically)",
+                "> set save global - Save global settings",
+                "> set load - Reload settings for the current server or world",
+                "> set load [filename] - Load settings from another file into the active profile",
+                "> set global load [filename] - Load settings from another file into the global profile"
         );
     }
 }
